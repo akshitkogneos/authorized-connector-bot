@@ -49,6 +49,19 @@ cp .env.example .env              # then fill in TARGET_URL / LOGIN_EMAIL / LOGI
 npm start
 ```
 
+`npm start` picks the mode for you:
+
+| Situation | What runs |
+|-----------|-----------|
+| `data/users.csv` exists with at least one usable row | **Batch mode** — every account in the CSV |
+| No CSV, or every row filtered out | **Single user** — `LOGIN_EMAIL` / `LOGIN_PASSWORD` from `.env` |
+
+To ignore the CSV and force the `.env` account:
+
+```bash
+npm start -- --single
+```
+
 Run just one phase:
 
 ```bash
@@ -60,7 +73,7 @@ Useful during the first run — keeps the browser open at the end (or on failure
 so you can inspect what the page actually looked like:
 
 ```bash
-npm start -- --keep-open
+npm start -- --keep-open      # single-user mode only
 ```
 
 Screenshots of every major step land in `runs/<timestamp>/`.
@@ -71,8 +84,9 @@ Screenshots of every major step land in `runs/<timestamp>/`.
 npm run batch
 ```
 
-Reads `data/users.csv` (override with `USERS_CSV` or `--csv=path`) and runs the
-full journey for every account, one after another.
+This is the explicit form of what `npm start` already does whenever
+`data/users.csv` has at least one usable row. Override the file with
+`USERS_CSV` or `--csv=path`; every account is run one after another.
 
 ```csv
 First Name,Last Name,Email,Password,Status
@@ -284,6 +298,8 @@ tools/
 
 | Symptom | Fix |
 |---------|-----|
+| `npm start` uses the CSV, not `LOGIN_EMAIL` | That's the default once `data/users.csv` has a usable row. Use `npm start -- --single` for the `.env` account. |
+| `npm start` uses `.env`, not the CSV | Every CSV row was filtered out — check the `Email`/`Password` columns and that `Status` is `Active` (or pass `--all`). Run `npm run test:csv` to validate the file. |
 | `Could not find "Connectors"` | The app was still loading. Raise `TIMEOUT`, or check `runs/<timestamp>/prompt-ready.png` for the real button label. |
 | Wrong rows get enabled | Adjust `SKIP_CONNECTORS` to match the exact labels you see in the log line *"connectors awaiting authorization: …"*. |
 | `Could not click "Allow"` | The consent screen used a different label — add it to `clickAllow` in [consent.js](./src/steps/consent.js). |

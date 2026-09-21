@@ -1,19 +1,43 @@
 #!/usr/bin/env node
+import path from 'node:path';
 import { assertConfig, config } from './config.js';
 import { launchBrowser } from './browser.js';
 import { log, runDir } from './logger.js';
 import { runUserFlow } from './flow.js';
+import { csvUsers, runBatch, CSV_PATH } from './batch.js';
 
 const KEEP_OPEN = process.argv.includes('--keep-open');
 const ONLY_SKILLS = process.argv.includes('--skills-only');
 const ONLY_CONNECTORS = process.argv.includes('--connectors-only');
+const FORCE_SINGLE = process.argv.includes('--single');
 
 export const phasesFromArgs = () => ({
   connectors: ONLY_SKILLS ? false : ONLY_CONNECTORS || config.doConnectors,
   skills: ONLY_CONNECTORS ? false : ONLY_SKILLS || config.doSkills,
 });
 
+/**
+ * Picks the mode.
+ *
+ * If a users CSV exists with at least one usable row we run every account in
+ * it - that is almost always the intent once the file is there. `--single`
+ * (or deleting/renaming the CSV) forces the .env single-user path.
+ */
 async function main() {
+  const users = FORCE_SINGLE ? [] : csvUsers();
+
+  if (users.length) {
+    log.info(
+      `found ${users.length} user(s) in ${path.relative(process.cwd(), CSV_PATH)} - running batch mode`,
+    );
+    log.info('use "npm start -- --single" to sign in with LOGIN_EMAIL from .env instead');
+    return runBatch();
+  }
+
+  return runSingle();
+}
+
+async function runSingle() {
   try {
     assertConfig();
   } catch (err) {

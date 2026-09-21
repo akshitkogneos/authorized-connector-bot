@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { launchBrowser } from './browser.js';
 import { baseRunDir, log, setRunContext } from './logger.js';
@@ -15,7 +16,7 @@ const value = (name, fallback) => {
   return hit ? hit.split('=').slice(1).join('=') : fallback;
 };
 
-const CSV_PATH = path.resolve(value('csv', config.usersCsv));
+export const CSV_PATH = path.resolve(value('csv', config.usersCsv));
 const ONLY_SKILLS = flag('skills-only');
 const ONLY_CONNECTORS = flag('connectors-only');
 const ALL_USERS = flag('all'); // include rows whose Status isn't Active
@@ -26,13 +27,26 @@ const phases = {
 };
 
 /**
+ * Users available in the configured CSV, or [] if there is no usable file.
+ * Used by src/index.js to decide between single-user and batch mode.
+ */
+export function csvUsers() {
+  try {
+    if (!fs.existsSync(CSV_PATH)) return [];
+    return toUsers(readCsvObjects(CSV_PATH), { onlyActive: !ALL_USERS });
+  } catch {
+    return [];
+  }
+}
+
+/**
  * Runs the whole journey for every user in the CSV.
  *
  * Each user gets a brand-new browser process, so sessions can never leak
  * between accounts - that matters here because Google keeps the previous
  * account in its chooser otherwise.
  */
-async function main() {
+export async function runBatch() {
   if (!config.targetUrl) {
     log.error('TARGET_URL is missing. Set it in .env.');
     return 1;
@@ -137,4 +151,7 @@ function report(results) {
   log.ok(`report written to ${path.relative(process.cwd(), file)}`);
 }
 
-process.exitCode = await main();
+// Only run when invoked directly (node src/batch.js); src/index.js imports it.
+if (process.argv[1] && fs.realpathSync(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = await runBatch();
+}
