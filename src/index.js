@@ -68,14 +68,19 @@ async function main() {
   }
 }
 
-/** Waits until the chat prompt with its toolbar (+ / Tools / Connectors) is up. */
+/**
+ * Waits until the composer is up. Its three left icons are icon-only buttons
+ * whose accessible names are "Add files", "Select tools" and "Sources"
+ * (= the connectors menu), so we look for those rather than visible text.
+ */
 async function waitForPrompt(page) {
   log.step('Waiting for the prompt toolbar');
   const ready = await firstVisible(
     [
-      page.getByRole('button', { name: /^connectors$/i }),
-      page.locator('button:has-text("Connectors")'),
-      page.getByRole('button', { name: /connector/i }),
+      page.locator('[aria-label="Sources"]'),
+      page.locator('[aria-label="Add files"]'),
+      page.locator('[aria-label="Select tools"]'),
+      page.locator('[aria-label*="source" i], [aria-label*="connector" i]'),
       page.getByRole('textbox'),
     ],
     { timeout: config.timeout },

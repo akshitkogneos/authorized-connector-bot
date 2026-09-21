@@ -19,7 +19,7 @@ export async function dismissOnboarding(page) {
       page.getByText(/^i understand$/i),
     ],
     'I understand',
-    { timeout: 25_000, optional: true },
+    { timeout: 12_000, optional: true },
   );
 
   await sleep(1_000);
@@ -34,7 +34,7 @@ export async function dismissOnboarding(page) {
       page.locator('button:has-text("Get started")'),
     ],
     'Get started',
-    { timeout: 25_000, optional: true },
+    { timeout: 12_000, optional: true },
   );
 
   await sleep(1_500);

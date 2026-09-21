@@ -11,11 +11,11 @@ flow for each one.
 |---|------|
 | 1 | Opens `TARGET_URL` in an incognito window |
 | 2 | Types the email address, then the password |
-| 3 | Clicks **I understand** |
+| 3 | Clicks **I understand** (only shown on the first ever login) |
 | 4 | Clicks **Get started** in the welcome popup |
-| 5 | Waits for the prompt toolbar, clicks the **Connectors** button |
-| 6 | Skips *Enable all connectors* and *Google Search* |
-| 7 | For each of the remaining 3 options: clicks **Enable actions** |
+| 5 | Waits for the composer, clicks the connectors icon (3rd from the left, accessible name **Sources**) |
+| 6 | Skips *Enable all connectors* and *Google Search* — they have no **Enable actions** button |
+| 7 | For each remaining row (Calendar, Drive, Gmail): clicks **Enable actions** |
 | 8 | In the popup: picks your account under *Choose an account* |
 | 9 | Scrolls all the way down and clicks **Allow** |
 | 10 | Re-opens the menu, confirms the row now reads **Disable actions**, moves to the next one |
@@ -91,6 +91,38 @@ commented list. The ones you are most likely to touch:
 > `.env` holds a plaintext password. It is already in `.gitignore` — never
 > commit it. Prefer a dedicated test account over a personal one.
 
+## How the target app is put together
+
+Worth knowing if the UI ever changes, because none of this is guessable from
+the rendered page:
+
+- **The entire UI lives in nested shadow roots.** A plain
+  `document.querySelectorAll('button')` returns *one* element. Playwright's
+  CSS/text engines pierce open shadow roots, so its locators still work — but
+  any `page.evaluate` you write must walk `el.shadowRoot` by hand.
+- **The composer's three left icons have no visible text.** Their accessible
+  names are `Add files`, `Select tools` and `Sources`. **Sources** is the
+  connectors menu referred to in the instructions.
+- **Rows are Material Web components.** The label sits in the *host's* light
+  DOM — `<md-outlined-button>Enable actions</md-outlined-button>` — while the
+  inner shadow `<button>` renders only a `<slot>` and has empty text. The bot
+  therefore targets the host element, and de-duplicates matches by position.
+- **The first two rows have no button at all**, just an `md-switch`. So
+  "skip the top two" happens naturally: only rows with an actual
+  *Enable actions* button are ever touched.
+
+### Re-discovering selectors
+
+If a UI update breaks something, run the inspector instead of guessing:
+
+```bash
+node tools/inspect.js
+```
+
+It signs in, dumps every shadow-piercing button with its `aria-label` and
+position, clicks the 3rd composer icon, dumps the resulting menu, and writes
+everything to `runs/inspect-<timestamp>.json` plus two screenshots.
+
 ## How it stays reliable
 
 - **No brittle CSS selectors.** Every element is located by its accessible role
@@ -118,8 +150,12 @@ src/
   steps/
     login.js          email, password, 2FA pause
     onboarding.js     "I understand" + "Get started"
-    connectors.js     the Connectors menu loop
+    connectors.js     the Sources menu loop
     consent.js        account chooser -> scroll -> Allow
+mock/
+  server.js           offline stand-in for the real app (npm run mock)
+tools/
+  inspect.js          shadow-DOM selector discovery
 ```
 
 ## Troubleshooting

@@ -3,19 +3,41 @@ import { log, shoot } from '../logger.js';
 import { clean, clickFirst, firstVisible, sleep } from '../utils.js';
 import { completeConsent } from './consent.js';
 
-const ENABLE = /enable actions/i;
-const DISABLE = /disable actions/i;
+/**
+ * Selector notes (discovered with tools/inspect.js against Gemini Enterprise):
+ *
+ *  - The whole UI lives in nested shadow roots. Playwright's CSS/text engines
+ *    pierce open shadow roots, so plain selectors still work.
+ *  - The composer's three left icons are icon-only buttons whose accessible
+ *    names are "Add files", "Select tools" and "Sources". "Sources" is the
+ *    connectors menu the instructions call the Connectors button.
+ *  - Each connector row is a Material Web <md-outlined-button>Enable actions
+ *    </md-outlined-button> plus an <md-switch>. The label text lives in the
+ *    host's light DOM, so we must target the host element, not the inner
+ *    <button> (whose own text is empty because it only renders a <slot>).
+ */
+const BUTTON_HOSTS = 'md-outlined-button, md-filled-button, md-text-button, md-filled-tonal-button, button, [role="button"]';
+
+const enableButtons = (page) => page.locator(`:is(${BUTTON_HOSTS}):has-text("Enable actions")`);
+const disableButtons = (page) => page.locator(`:is(${BUTTON_HOSTS}):has-text("Disable actions")`);
+
+const connectorsButton = (page) => [
+  page.locator('[aria-label="Sources"]'),
+  page.locator('[aria-label="Connectors"]'),
+  page.getByRole('button', { name: /^(sources|connectors)$/i }),
+  page.locator('[aria-label*="source" i], [aria-label*="connector" i]'),
+];
 
 /**
- * Step 6-10: open the Connectors menu and authorize every connector that is
- * not on the skip list, one at a time.
+ * Step 6-10: open the Connectors ("Sources") menu and authorize every
+ * connector that is not on the skip list, one at a time.
  *
- * The menu is re-opened for each connector because the OAuth popup usually
- * tears it down, and because an authorized row swaps its button from
- * "Enable actions" to "Disable actions" - so the list shrinks as we go.
+ * The menu is re-opened for each connector because the OAuth popup tears it
+ * down, and because an authorized row swaps its button from "Enable actions"
+ * to "Disable actions" - so the list shrinks as we go.
  */
 export async function authorizeConnectors(page, context) {
-  log.step('Opening the Connectors menu');
+  log.step('Opening the Connectors (Sources) menu');
 
   const processed = new Set();
   const failed = [];
@@ -62,24 +84,11 @@ export async function authorizeConnectors(page, context) {
 /* ------------------------------------------------------------------ */
 
 async function openConnectorsMenu(page) {
-  // Already open?
-  const open = await firstVisible([page.getByRole('button', { name: ENABLE }), page.getByRole('button', { name: DISABLE })], {
-    timeout: 1_200,
-  });
-  if (open) return;
+  const alreadyOpen = await firstVisible([enableButtons(page), disableButtons(page)], { timeout: 1_200 });
+  if (alreadyOpen) return;
 
-  await clickFirst(
-    [
-      page.getByRole('button', { name: /^connectors$/i }),
-      page.locator('button:has-text("Connectors")'),
-      page.locator('[aria-label*="Connector" i]'),
-      page.getByRole('button', { name: /connector/i }),
-      page.getByText(/^connectors$/i),
-    ],
-    'Connectors',
-    { timeout: 20_000 },
-  );
-  await sleep(1_200);
+  await clickFirst(connectorsButton(page), 'Connectors (Sources)', { timeout: 20_000 });
+  await sleep(1_500);
 }
 
 async function closeMenu(page) {
@@ -87,35 +96,53 @@ async function closeMenu(page) {
   await sleep(400);
 }
 
-/** Reads every visible "Enable actions" button together with its row label. */
+/**
+ * Reads every visible "Enable actions" button together with its row label.
+ *
+ * A single Material Web button can match twice (the host element and the
+ * inner shadow <button> that renders the slotted text), so rows are
+ * de-duplicated by on-screen position.
+ */
 async function collectEnableRows(page) {
-  const buttons = page.getByRole('button', { name: ENABLE });
-  const fallback = page.locator('button:has-text("Enable actions"), [role="button"]:has-text("Enable actions")');
-
-  const source = (await buttons.count()) > 0 ? buttons : fallback;
-  const total = await source.count();
+  const source = enableButtons(page);
+  const total = await source.count().catch(() => 0);
 
   const rows = [];
+  const seen = new Set();
+
   for (let i = 0; i < total; i += 1) {
     const button = source.nth(i);
     if (!(await button.isVisible().catch(() => false))) continue;
-    rows.push({ index: rows.length, label: await rowLabel(button), button });
+
+    const box = await button.boundingBox().catch(() => null);
+    const key = box ? `${Math.round(box.x)}:${Math.round(box.y)}` : `idx-${i}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+
+    rows.push({ label: await rowLabel(button, rows.length), button });
   }
 
   log.info(`connectors awaiting authorization: ${rows.map((r) => `"${r.label}"`).join(', ') || 'none'}`);
   return rows;
 }
 
-/** Walks up the DOM from the button to find the human-readable connector name. */
-async function rowLabel(button) {
+/**
+ * Walks up from the button to the row that holds the connector name.
+ * Must hop across shadow boundaries via getRootNode().host, because
+ * parentElement stops at the edge of each shadow root.
+ */
+async function rowLabel(button, fallbackIndex) {
   const raw = await button
     .evaluate((el) => {
-      const own = (el.innerText || '').replace(/\s+/g, ' ').trim();
+      const own = (el.textContent || '').replace(/\s+/g, ' ').trim();
       let node = el;
-      for (let i = 0; i < 6 && node.parentElement; i += 1) {
-        node = node.parentElement;
-        const text = (node.innerText || '').replace(/\s+/g, ' ').trim();
-        if (text && text !== own && text.length > own.length) return text;
+      for (let i = 0; i < 8; i += 1) {
+        const root = node.getRootNode();
+        const parent = node.parentElement || (root && root.host) || null;
+        if (!parent) break;
+        node = parent;
+        const text = (node.textContent || '').replace(/\s+/g, ' ').trim();
+        if (text.length > own.length + 2) return text;
       }
       return own;
     })
@@ -124,10 +151,10 @@ async function rowLabel(button) {
   const label = clean(raw)
     .replace(/enable actions/gi, '')
     .replace(/disable actions/gi, '')
-    .split(/[\n·|]/)[0]
+    .replace(/toggle source/gi, '')
     .trim();
 
-  return label || `connector #${Math.random().toString(36).slice(2, 6)}`;
+  return label || `connector #${fallbackIndex + 1}`;
 }
 
 const isSkipped = (label) =>
@@ -161,7 +188,7 @@ async function enableOne(page, context, row) {
   }
 
   await page.bringToFront().catch(() => {});
-  await sleep(2_500);
+  await sleep(3_000);
   await verifyDisabledLabel(page, row.label);
 }
 
@@ -169,14 +196,7 @@ async function enableOne(page, context, row) {
 async function verifyDisabledLabel(page, label) {
   await openConnectorsMenu(page);
 
-  const confirmed = await firstVisible(
-    [
-      page.getByRole('button', { name: DISABLE }),
-      page.locator('button:has-text("Disable actions")'),
-    ],
-    { timeout: 12_000 },
-  );
-
+  const confirmed = await firstVisible([disableButtons(page)], { timeout: 12_000 });
   if (confirmed) log.ok(`"${label}" now shows "Disable actions"`);
   else log.warn(`could not confirm the "Disable actions" state for "${label}" - continuing`);
 }
