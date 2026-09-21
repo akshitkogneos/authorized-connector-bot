@@ -48,12 +48,12 @@ const loginPage = () =>
        $('#s1').style.display='none'; $('#s2').style.display='block'; };
      $('#next2').onclick=()=>{ const p=$('input[name=Passwd]').value;
        if(p!==${JSON.stringify(PASSWORD)}){$('#err').textContent='Wrong password';return;}
-       location.href='/app'; };`,
+       location.href='/app?u='+encodeURIComponent($('#identifierId').value); };`,
   );
 
 /* ------------------------------- app ------------------------------- */
 
-const appPage = () =>
+const appPage = (user) =>
   page(
     'Mock App',
     `<div class="overlay" id="ack"><div class="modal"><h3>Terms</h3>
@@ -74,6 +74,7 @@ const appPage = () =>
      </div>`,
     `const $=s=>document.querySelector(s);
      const NAMES=${JSON.stringify(CONNECTORS)};
+     const USER=${JSON.stringify(user)};
      const state={}; NAMES.slice(2).forEach(n=>state[n]=false);
 
      $('#understand').onclick=()=>{ $('#ack').style.display='none'; $('#welcome').style.display='flex'; };
@@ -87,7 +88,7 @@ const appPage = () =>
        document.querySelectorAll('.enable').forEach(b=>b.onclick=()=>{
          const n=b.dataset.n;
          if(state[n]){ state[n]=false; render(); return; }
-         window.open('/oauth?c='+encodeURIComponent(n),'oauth','width=600,height=700');
+         window.open('/oauth?c='+encodeURIComponent(n)+'&u='+encodeURIComponent(USER),'oauth','width=600,height=700');
        });
      }
      $('#conn').onclick=()=>{ const m=$('#menu'); const open=m.style.display==='block';
@@ -97,13 +98,13 @@ const appPage = () =>
 
 /* ------------------------------ oauth ------------------------------ */
 
-const oauthPage = (connector) =>
+const oauthPage = (connector, user) =>
   page(
     'Choose an account',
     `<h2>Choose an account</h2>
      <p>to continue to <b>${connector}</b></p>
      <ul id="accounts">
-       <li data-identifier="${EMAIL}">${EMAIL}</li>
+       <li data-identifier="${user}">${user}</li>
        <li data-identifier="someone.else@example.com">someone.else@example.com</li>
      </ul>
 
@@ -121,7 +122,7 @@ const oauthPage = (connector) =>
      </div>`,
     `const $=s=>document.querySelector(s);
      document.querySelectorAll('#accounts li').forEach(li=>li.onclick=()=>{
-       if(li.dataset.identifier!==${JSON.stringify(EMAIL)}){ alert('wrong account'); return; }
+       if(li.dataset.identifier!==${JSON.stringify(user)}){ alert('wrong account'); return; }
        $('#accounts').style.display='none'; $('#consent').style.display='block';
      });
      document.addEventListener('scroll',()=>{},true);
@@ -139,8 +140,9 @@ http
   .createServer((req, res) => {
     const url = new URL(req.url, `http://localhost:${PORT}`);
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (url.pathname === '/app') return res.end(appPage());
-    if (url.pathname === '/oauth') return res.end(oauthPage(url.searchParams.get('c') || 'App'));
+    if (url.pathname === '/app') return res.end(appPage(url.searchParams.get('u') || EMAIL));
+    if (url.pathname === '/oauth')
+      return res.end(oauthPage(url.searchParams.get('c') || 'App', url.searchParams.get('u') || EMAIL));
     if (url.pathname === '/favicon.ico') return res.end('');
     return res.end(loginPage());
   })

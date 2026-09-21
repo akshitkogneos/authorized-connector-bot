@@ -1,5 +1,10 @@
 node_modules/
 .env
 runs/
+scratch/
 *.log
 .DS_Store
+
+# Holds plaintext passwords - same rules as .env.
+data/*.csv
+!data/users.example.csv

@@ -35,6 +35,10 @@ export const config = {
   selectAllScopes: bool(process.env.SELECT_ALL_SCOPES, true),
   manualStepTimeout: int(process.env.MANUAL_STEP_TIMEOUT, 180_000),
   screenshots: bool(process.env.SCREENSHOTS, true),
+
+  // Batch mode (npm run batch)
+  usersCsv: process.env.USERS_CSV || 'data/users.csv',
+  batchDelay: int(process.env.BATCH_DELAY, 5_000),
 };
 
 export function assertConfig() {

@@ -10,14 +10,16 @@ import { clickFirst, firstVisible, scrollToBottom, sleep, waitForClose } from '.
  *   4. click "Allow"
  *
  * Works whether the flow renders in a popup window or in the current tab.
+ * `accountEmail` defaults to the .env user for single-user runs.
  */
-export async function completeConsent(popup, connectorLabel) {
+export async function completeConsent(popup, connectorLabel, accountEmail) {
+  const email = accountEmail || config.email;
   log.step(`Authorizing "${connectorLabel}" in the consent window`);
 
   await popup.waitForLoadState('domcontentloaded').catch(() => {});
   await sleep(1_200);
 
-  await chooseAccount(popup);
+  await chooseAccount(popup, email);
   await shoot(popup, `consent-account-${slug(connectorLabel)}`);
 
   // Some tenants insert an extra "Continue"/"Sign in" interstitial.
@@ -44,8 +46,7 @@ export async function completeConsent(popup, connectorLabel) {
 }
 
 /** Picks the configured email on the "Choose an account" screen. */
-async function chooseAccount(popup) {
-  const email = config.email;
+async function chooseAccount(popup, email) {
   const picker = await firstVisible(
     [
       popup.locator(`[data-identifier="${email}"]`),

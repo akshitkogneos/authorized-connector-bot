@@ -8,7 +8,9 @@
   "scripts": {
     "start": "node src/index.js",
     "bot": "node src/index.js",
+    "batch": "node src/batch.js",
     "mock": "node mock/server.js",
+    "test:csv": "node tools/test-csv.js",
     "test:mock": "TARGET_URL=http://localhost:5599/ LOGIN_EMAIL=tester@example.com LOGIN_PASSWORD=secret123 HEADLESS=true BROWSER_CHANNEL= USE_INCOGNITO_WINDOW=false SLOW_MO=0 MANUAL_STEP_TIMEOUT=0 SCREENSHOTS=false node src/index.js",
     "install:browsers": "playwright install chromium"
   },

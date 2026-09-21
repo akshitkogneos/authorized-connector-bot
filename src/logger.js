@@ -14,8 +14,13 @@ const COLORS = {
 
 const stamp = () => new Date().toISOString().slice(11, 19);
 
+/** Prefix shown on every line, e.g. the current user in a batch run. */
+let scope = '';
+
 const write = (kind, icon, msg) =>
-  console.log(`${COLORS.dim}[${stamp()}]${COLORS.reset} ${COLORS[kind]}${icon} ${msg}${COLORS.reset}`);
+  console.log(
+    `${COLORS.dim}[${stamp()}]${COLORS.reset}${scope} ${COLORS[kind]}${icon} ${msg}${COLORS.reset}`,
+  );
 
 export const log = {
   info: (m) => write('info', 'ℹ', m),
@@ -25,24 +30,39 @@ export const log = {
   error: (m) => write('error', '✖', m),
 };
 
-/** Directory where screenshots for this run are stored. */
-export const runDir = path.join(
+/** Root directory for this process's screenshots. */
+export const baseRunDir = path.join(
   process.cwd(),
   'runs',
   new Date().toISOString().replace(/[:.]/g, '-'),
 );
 
+let currentDir = baseRunDir;
 let shotIndex = 0;
+
+export const runDir = () => currentDir;
+
+/**
+ * Starts a new logical section: screenshots go to their own subfolder and the
+ * log gains a prefix. Used by the batch runner to keep users apart.
+ */
+export function setRunContext(name) {
+  currentDir = name ? path.join(baseRunDir, safe(name)) : baseRunDir;
+  scope = name ? ` ${COLORS.dim}[${name}]${COLORS.reset}` : '';
+  shotIndex = 0;
+}
 
 /** Saves a screenshot of `page`, named after the current step. Never throws. */
 export async function shoot(page, name) {
   if (!config.screenshots || !page || page.isClosed()) return;
   try {
-    fs.mkdirSync(runDir, { recursive: true });
-    const file = path.join(runDir, `${String(++shotIndex).padStart(2, '0')}-${name}.png`);
+    fs.mkdirSync(currentDir, { recursive: true });
+    const file = path.join(currentDir, `${String(++shotIndex).padStart(2, '0')}-${name}.png`);
     await page.screenshot({ path: file, fullPage: false });
     log.info(`screenshot → ${path.relative(process.cwd(), file)}`);
   } catch {
     /* screenshots are best-effort only */
   }
 }
+
+const safe = (s) => s.replace(/[^a-z0-9._@-]+/gi, '_').slice(0, 60);

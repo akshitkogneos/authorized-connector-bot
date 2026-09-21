@@ -36,7 +36,7 @@ const connectorsButton = (page) => [
  * down, and because an authorized row swaps its button from "Enable actions"
  * to "Disable actions" - so the list shrinks as we go.
  */
-export async function authorizeConnectors(page, context) {
+export async function authorizeConnectors(page, context, accountEmail) {
   log.step('Opening the Connectors (Sources) menu');
 
   const processed = new Set();
@@ -65,7 +65,7 @@ export async function authorizeConnectors(page, context) {
     log.step(`(${done + 1}/${config.maxConnectors}) Enabling actions for "${next.label}"`);
 
     try {
-      await enableOne(page, context, next);
+      await enableOne(page, context, next, accountEmail);
       done += 1;
       log.ok(`"${next.label}" is now authorized`);
     } catch (err) {
@@ -161,7 +161,7 @@ const isSkipped = (label) =>
   config.skipConnectors.some((skip) => label.toLowerCase().includes(skip.toLowerCase()));
 
 /** Clicks one "Enable actions" button and drives the consent flow it opens. */
-async function enableOne(page, context, row) {
+async function enableOne(page, context, row, accountEmail) {
   const popupPromise = context.waitForEvent('page', { timeout: 20_000 }).catch(() => null);
 
   await row.button.scrollIntoViewIfNeeded().catch(() => {});
@@ -171,7 +171,7 @@ async function enableOne(page, context, row) {
   const popup = await popupPromise;
 
   if (popup) {
-    await completeConsent(popup, row.label);
+    await completeConsent(popup, row.label, accountEmail);
   } else {
     // Consent rendered in the same tab instead of a separate window.
     log.warn('no popup detected - looking for an in-page consent screen');
@@ -184,7 +184,7 @@ async function enableOne(page, context, row) {
       { timeout: 8_000 },
     );
     if (!inline) throw new Error('No consent screen appeared after clicking "Enable actions".');
-    await completeConsent(page, row.label);
+    await completeConsent(page, row.label, accountEmail);
   }
 
   await page.bringToFront().catch(() => {});

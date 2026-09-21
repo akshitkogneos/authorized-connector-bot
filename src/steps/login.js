@@ -32,17 +32,23 @@ const nextButton = (page) => [
  *
  * Handles both the two-page Google style flow (email -> Next -> password) and
  * single-page forms where both fields are visible at once.
+ *
+ * `creds` lets the batch runner sign in as an arbitrary user; it falls back to
+ * the single-user values from .env.
  */
-export async function login(page) {
-  log.step('Signing in');
+export async function login(page, creds = {}) {
+  const email = creds.email || config.email;
+  const password = creds.password || config.password;
 
-  const email = await firstVisible(emailField(page), { timeout: config.timeout });
-  if (!email) {
+  log.step(`Signing in as ${email}`);
+
+  const emailVisible = await firstVisible(emailField(page), { timeout: config.timeout });
+  if (!emailVisible) {
     log.warn('No email field visible - assuming the app is already authenticated.');
     return;
   }
 
-  await typeInto(emailField(page), config.email, 'email address');
+  await typeInto(emailField(page), email, 'email address');
 
   // Single-page form? Fill the password right away, otherwise advance first.
   const inlinePassword = await firstVisible(passwordField(page), { timeout: 1_500 });
@@ -55,14 +61,48 @@ export async function login(page) {
 
   await shoot(page, 'email-entered');
 
-  await typeInto(passwordField(page), config.password, 'password', { timeout: config.timeout });
+  await typeInto(passwordField(page), password, 'password', { timeout: config.timeout });
   await clickFirst(nextButton(page), 'Next (after password)', { timeout: 15_000 }).catch(async () => {
     await page.keyboard.press('Enter');
   });
 
   await waitForChallenge(page);
+  await assertSignedIn(page, email);
   await shoot(page, 'signed-in');
   log.ok('signed in');
+}
+
+/**
+ * Confirms we actually got past the login form.
+ *
+ * Without this a wrong password fails silently: the bot carries on and only
+ * trips much later with a misleading "could not find Connectors", which in a
+ * batch run hides the real cause. We wait for the password field to disappear
+ * and look for an explicit rejection message.
+ */
+async function assertSignedIn(page, email) {
+  const deadline = Date.now() + 15_000;
+
+  while (Date.now() < deadline) {
+    const rejected = await firstVisible(
+      [
+        page.getByText(/wrong password|incorrect password|couldn.t sign you in/i),
+        page.getByText(/couldn.t find your Google Account|enter a valid email/i),
+      ],
+      { timeout: 500 },
+    );
+    if (rejected) {
+      const reason = (await rejected.textContent().catch(() => '')) || 'credentials rejected';
+      throw new Error(`Sign-in failed for ${email}: ${reason.trim().slice(0, 120)}`);
+    }
+
+    const stillOnForm = await firstVisible(passwordField(page), { timeout: 500 });
+    if (!stillOnForm) return;
+
+    await sleep(1_000);
+  }
+
+  throw new Error(`Sign-in failed for ${email}: still on the password screen (wrong password?)`);
 }
 
 /**

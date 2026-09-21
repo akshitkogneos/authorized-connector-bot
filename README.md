@@ -65,6 +65,58 @@ npm start -- --keep-open
 
 Screenshots of every major step land in `runs/<timestamp>/`.
 
+## Batch mode — many accounts from a CSV
+
+```bash
+npm run batch
+```
+
+Reads `data/users.csv` (override with `USERS_CSV` or `--csv=path`) and runs the
+full journey for every account, one after another.
+
+```csv
+First Name,Last Name,Email,Password,Status
+Ada,Lovelace,ada@example.com,pw1,Active
+Alan,Turing,alan@example.com,pw2,Suspended
+```
+
+- Only **Email** and **Password** are required; the header is matched
+  case-insensitively.
+- Rows whose **Status** is not `Active` are skipped — pass `--all` to include
+  them.
+- `LOGIN_EMAIL` / `LOGIN_PASSWORD` from `.env` are ignored here.
+
+Flags:
+
+```bash
+npm run batch -- --csv=data/other.csv   # a different file
+npm run batch -- --skills-only          # or --connectors-only
+npm run batch -- --all                  # ignore the Status column
+```
+
+> [!IMPORTANT]
+> Every user gets its **own browser process**, not just a new tab. Google keeps
+> the previous account in its chooser otherwise, and the second user would
+> silently authorize connectors against the first user's account.
+
+Each run produces:
+
+- `runs/<timestamp>/<n>-<email>/` — screenshots for that user
+- `runs/<timestamp>/report.csv` — one row per user with counts and errors
+- a summary table on stdout:
+
+```
+USER                    STATUS   CONN  SKILLS TIME
+ada@example.com         ok       3     5      88s
+alan@example.com        failed   0     0      11s
+  Sign-in failed for alan@example.com: Wrong password
+grace@example.com       ok       3     5      84s
+2/3 user(s) completed without errors
+```
+
+One user's failure never stops the rest, and the exit code is non-zero if any
+user failed — handy for CI or a cron job.
+
 ## Verify it works (offline self-test)
 
 The repo ships with a mock app that imitates the real flow — sign-in, the two
@@ -89,8 +141,19 @@ connectors authorized: 3
 ```
 
 > [!NOTE]
-> The mock only covers phase 1. Run the skills phase against the real app with
-> `npm start -- --skills-only`.
+> The mock only covers phase 1, but it does support multiple accounts, so it
+> can also exercise `npm run batch -- --csv=... --connectors-only`. Run the
+> skills phase against the real app with `npm start -- --skills-only`.
+
+The CSV layer has its own test — no browser, no network:
+
+```bash
+npm run test:csv
+```
+
+It covers CRLF endings, a missing trailing newline, a UTF-8 BOM, quoted fields,
+passwords containing `$` or `!`, the `Status` filter, and a `writeCsv`
+round-trip, then validates your real `data/users.csv`.
 
 ## Configuration
 
@@ -109,6 +172,8 @@ commented list. The ones you are most likely to touch:
 | `USE_INCOGNITO_WINDOW` | `true` | Launch Chrome with `--incognito` |
 | `SLOW_MO` | `120` | Delay (ms) between actions |
 | `MANUAL_STEP_TIMEOUT` | `180000` | Pause for you to finish 2FA by hand |
+| `USERS_CSV` | `data/users.csv` | Accounts for batch mode |
+| `BATCH_DELAY` | `5000` | Pause (ms) between users in a batch run |
 
 > [!IMPORTANT]
 > Leave `HEADLESS=false`. Google's sign-in and OAuth consent screens routinely
@@ -192,21 +257,27 @@ position, drills into the relevant menu, and writes everything to
 
 ```
 src/
-  index.js            orchestration, phase toggles, summary
+  index.js            single-user entry point
+  batch.js            multi-user entry point (CSV -> report)
+  flow.js             the per-user journey, shared by both entry points
+  csv.js              dependency-free CSV read/write
   config.js           .env parsing and validation
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
-  logger.js           coloured logs + screenshots
+  logger.js           coloured logs + per-user screenshot folders
   steps/
-    login.js          email, password, 2FA pause
+    login.js          email, password, 2FA pause, sign-in verification
     onboarding.js     "I understand" + "Get started"
     connectors.js     the Sources menu loop
     consent.js        account chooser -> scroll -> Allow
     skills.js         Skills nav -> marketplace -> install everything
+data/
+  users.csv           accounts for batch mode (gitignored - holds passwords)
 mock/
   server.js           offline stand-in for the real app (npm run mock)
 tools/
   inspect.js          shadow-DOM selector discovery (composer | skills)
+  test-csv.js         offline CSV test suite (npm run test:csv)
 ```
 
 ## Troubleshooting
