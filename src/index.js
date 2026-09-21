@@ -6,8 +6,14 @@ import { firstVisible, sleep } from './utils.js';
 import { login } from './steps/login.js';
 import { dismissOnboarding } from './steps/onboarding.js';
 import { authorizeConnectors } from './steps/connectors.js';
+import { installSkills } from './steps/skills.js';
 
 const KEEP_OPEN = process.argv.includes('--keep-open');
+const ONLY_SKILLS = process.argv.includes('--skills-only');
+const ONLY_CONNECTORS = process.argv.includes('--connectors-only');
+
+const runConnectors = ONLY_SKILLS ? false : ONLY_CONNECTORS || config.doConnectors;
+const runSkills = ONLY_CONNECTORS ? false : ONLY_SKILLS || config.doSkills;
 
 async function main() {
   try {
@@ -39,11 +45,42 @@ async function main() {
     await dismissOnboarding(page);
     await waitForPrompt(page);
 
-    const { authorized, failed } = await authorizeConnectors(page, context);
+    const result = { authorized: 0, failed: [], installed: 0, skillsFailed: [] };
+
+    // Phase 1 - connectors. A failure here must not block the skills phase.
+    if (runConnectors) {
+      try {
+        const { authorized, failed } = await authorizeConnectors(page, context);
+        result.authorized = authorized;
+        result.failed = failed;
+      } catch (err) {
+        log.error(`connector phase failed: ${err.message}`);
+        result.failed.push('(phase error)');
+      }
+    } else {
+      log.info('skipping the connectors phase');
+    }
+
+    // Phase 2 - skills.
+    if (runSkills) {
+      try {
+        const { installed, failed } = await installSkills(page);
+        result.installed = installed;
+        result.skillsFailed = failed;
+      } catch (err) {
+        log.error(`skills phase failed: ${err.message}`);
+        await shoot(page, 'skills-failure');
+        result.skillsFailed.push('(phase error)');
+      }
+    } else {
+      log.info('skipping the skills phase');
+    }
 
     log.step('Summary');
-    log.ok(`connectors authorized: ${authorized}`);
-    if (failed.length) log.error(`connectors failed: ${failed.join(', ')}`);
+    if (runConnectors) log.ok(`connectors authorized: ${result.authorized}`);
+    if (result.failed.length) log.error(`connectors failed: ${result.failed.join(', ')}`);
+    if (runSkills) log.ok(`skills installed: ${result.installed}`);
+    if (result.skillsFailed.length) log.error(`skills failed: ${result.skillsFailed.join(', ')}`);
     if (config.screenshots) log.info(`screenshots saved in ${runDir}`);
 
     if (KEEP_OPEN) {
@@ -51,7 +88,7 @@ async function main() {
       await new Promise(() => {});
     }
 
-    return failed.length ? 1 : 0;
+    return result.failed.length || result.skillsFailed.length ? 1 : 0;
   } catch (err) {
     log.error(err.message);
     await shoot(page, 'failure');

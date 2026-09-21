@@ -1,11 +1,15 @@
 # Authorized Connectors Bot
 
-A Playwright bot that opens your app in a clean **incognito** session, signs in,
-clears the onboarding dialogs, and then authorizes every connector in the
-prompt's **Connectors** menu — clicking through the full Google OAuth consent
-flow for each one.
+A Playwright bot that opens Gemini Enterprise in a clean **incognito** session,
+signs in, and then runs two phases:
+
+1. **Connectors** — authorizes every connector in the composer's *Sources* menu,
+   clicking through the full Google OAuth consent flow for each one.
+2. **Skills** — opens the skills marketplace and installs every available skill.
 
 ## What it automates
+
+### Phase 1 — connectors
 
 | # | Step |
 |---|------|
@@ -20,6 +24,17 @@ flow for each one.
 | 9 | Scrolls all the way down and clicks **Allow** |
 | 10 | Re-opens the menu, confirms the row now reads **Disable actions**, moves to the next one |
 
+### Phase 2 — skills
+
+| # | Step |
+|---|------|
+| 11 | Clicks **Skills** in the left nav |
+| 12 | Opens the marketplace — **Browse Skills** when no skill is installed yet, otherwise the **+** at the top of the Skills panel |
+| 13 | Clicks **+ Install** on every card, one at a time, until none are left |
+
+Both phases are resumable: anything already authorized or installed is simply
+not offered again, so re-running is harmless.
+
 ## Setup
 
 ```bash
@@ -32,6 +47,13 @@ cp .env.example .env              # then fill in TARGET_URL / LOGIN_EMAIL / LOGI
 
 ```bash
 npm start
+```
+
+Run just one phase:
+
+```bash
+npm start -- --connectors-only
+npm start -- --skills-only
 ```
 
 Useful during the first run — keeps the browser open at the end (or on failure)
@@ -66,6 +88,10 @@ Summary
 connectors authorized: 3
 ```
 
+> [!NOTE]
+> The mock only covers phase 1. Run the skills phase against the real app with
+> `npm start -- --skills-only`.
+
 ## Configuration
 
 All settings live in `.env` — see [.env.example](./.env.example) for the full,
@@ -77,6 +103,8 @@ commented list. The ones you are most likely to touch:
 | `LOGIN_EMAIL` / `LOGIN_PASSWORD` | — | Credentials typed at sign-in |
 | `SKIP_CONNECTORS` | `Enable all connectors,Google Search` | Rows the bot must never touch (substring match) |
 | `MAX_CONNECTORS` | `3` | Safety cap per run |
+| `MAX_SKILLS` | `10` | Safety cap on skill installs per run |
+| `DO_CONNECTORS` / `DO_SKILLS` | `true` | Enable/disable a phase without CLI flags |
 | `BROWSER_CHANNEL` | `chrome` | `chrome` = real Chrome, empty = bundled Chromium |
 | `USE_INCOGNITO_WINDOW` | `true` | Launch Chrome with `--incognito` |
 | `SLOW_MO` | `120` | Delay (ms) between actions |
@@ -111,17 +139,35 @@ the rendered page:
   "skip the top two" happens naturally: only rows with an actual
   *Enable actions* button are ever touched.
 
+And on the Skills page:
+
+- **Left nav entries are links**, not buttons — `getByRole('link', 'Skills')`.
+- **Install buttons are `<ucs-luminous-button>`** wrapping a
+  `button.luminous-button` whose text reads `add_2 Install` — `add_2` is the
+  Material icon *ligature* leaking into `textContent`, so it is stripped before
+  comparing.
+- **Each card itself has `role="button"`.** A naive
+  `[role="button"]:has-text("Install")` therefore matches the card too, and
+  clicking it opens the skill's detail view instead of installing. The bot only
+  matches the luminous-button classes.
+- **The marketplace entry point changes with state.** With nothing installed the
+  page shows three buttons (middle = *Browse Skills*); once a skill exists that
+  row is replaced by the installed-skills list and the only way in is the **+**
+  at the top of the Skills panel. The bot tries both and verifies the dialog
+  actually opened.
+
 ### Re-discovering selectors
 
 If a UI update breaks something, run the inspector instead of guessing:
 
 ```bash
-node tools/inspect.js
+node tools/inspect.js           # composer + Sources menu
+node tools/inspect.js skills    # Skills page + marketplace dialog
 ```
 
 It signs in, dumps every shadow-piercing button with its `aria-label` and
-position, clicks the 3rd composer icon, dumps the resulting menu, and writes
-everything to `runs/inspect-<timestamp>.json` plus two screenshots.
+position, drills into the relevant menu, and writes everything to
+`runs/inspect-<timestamp>.json` plus screenshots.
 
 ## How it stays reliable
 
@@ -135,14 +181,18 @@ everything to `runs/inspect-<timestamp>.json` plus two screenshots.
 - **Allow is retried** — Google keeps it disabled until the consent text has
   genuinely been scrolled.
 - **Popup or same-tab** consent flows are both handled.
-- **Failures are isolated**: if one connector breaks, stray windows are closed
-  and the bot moves on to the next, then reports which ones failed.
+- **Skill progress is measured by how many *Install* buttons remain**, never by
+  index or name: the marketplace re-orders itself after every install, so a
+  remembered position points at a different card on the next scan.
+- **Failures are isolated**: a broken connector closes stray windows and moves
+  on, a stubborn skill is skipped after one retry, and a whole failed phase
+  still lets the other phase run. The summary lists exactly what failed.
 
 ## Project layout
 
 ```
 src/
-  index.js            orchestration + summary
+  index.js            orchestration, phase toggles, summary
   config.js           .env parsing and validation
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
@@ -152,10 +202,11 @@ src/
     onboarding.js     "I understand" + "Get started"
     connectors.js     the Sources menu loop
     consent.js        account chooser -> scroll -> Allow
+    skills.js         Skills nav -> marketplace -> install everything
 mock/
   server.js           offline stand-in for the real app (npm run mock)
 tools/
-  inspect.js          shadow-DOM selector discovery
+  inspect.js          shadow-DOM selector discovery (composer | skills)
 ```
 
 ## Troubleshooting

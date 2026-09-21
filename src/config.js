@@ -29,6 +29,9 @@ export const config = {
 
   skipConnectors: list(process.env.SKIP_CONNECTORS, 'Enable all connectors,Google Search'),
   maxConnectors: int(process.env.MAX_CONNECTORS, 3),
+  maxSkills: int(process.env.MAX_SKILLS, 10),
+  doConnectors: bool(process.env.DO_CONNECTORS, true),
+  doSkills: bool(process.env.DO_SKILLS, true),
   selectAllScopes: bool(process.env.SELECT_ALL_SCOPES, true),
   manualStepTimeout: int(process.env.MANUAL_STEP_TIMEOUT, 180_000),
   screenshots: bool(process.env.SCREENSHOTS, true),
