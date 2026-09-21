@@ -1,0 +1,133 @@
+# Authorized Connectors Bot
+
+A Playwright bot that opens your app in a clean **incognito** session, signs in,
+clears the onboarding dialogs, and then authorizes every connector in the
+prompt's **Connectors** menu — clicking through the full Google OAuth consent
+flow for each one.
+
+## What it automates
+
+| # | Step |
+|---|------|
+| 1 | Opens `TARGET_URL` in an incognito window |
+| 2 | Types the email address, then the password |
+| 3 | Clicks **I understand** |
+| 4 | Clicks **Get started** in the welcome popup |
+| 5 | Waits for the prompt toolbar, clicks the **Connectors** button |
+| 6 | Skips *Enable all connectors* and *Google Search* |
+| 7 | For each of the remaining 3 options: clicks **Enable actions** |
+| 8 | In the popup: picks your account under *Choose an account* |
+| 9 | Scrolls all the way down and clicks **Allow** |
+| 10 | Re-opens the menu, confirms the row now reads **Disable actions**, moves to the next one |
+
+## Setup
+
+```bash
+npm install
+npx playwright install chromium   # only needed if you don't use real Chrome
+cp .env.example .env              # then fill in TARGET_URL / LOGIN_EMAIL / LOGIN_PASSWORD
+```
+
+## Run
+
+```bash
+npm start
+```
+
+Useful during the first run — keeps the browser open at the end (or on failure)
+so you can inspect what the page actually looked like:
+
+```bash
+npm start -- --keep-open
+```
+
+Screenshots of every major step land in `runs/<timestamp>/`.
+
+## Verify it works (offline self-test)
+
+The repo ships with a mock app that imitates the real flow — sign-in, the two
+onboarding dialogs, a 5-row connectors menu, and an OAuth popup whose **Allow**
+button only unlocks after you scroll. Use it to sanity-check the bot without
+touching the real site:
+
+```bash
+npm run mock        # terminal 1 - serves http://localhost:5599
+npm run test:mock   # terminal 2 - runs the bot headlessly against it
+```
+
+Expected tail of the output:
+
+```
+connectors awaiting authorization: "Gmail", "Google Calendar", "Google Drive"
+(1/3) Enabling actions for "Gmail"      ... "Gmail" now shows "Disable actions"
+(2/3) Enabling actions for "Google Calendar" ...
+(3/3) Enabling actions for "Google Drive"    ...
+Summary
+connectors authorized: 3
+```
+
+## Configuration
+
+All settings live in `.env` — see [.env.example](./.env.example) for the full,
+commented list. The ones you are most likely to touch:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `TARGET_URL` | — | Page to open |
+| `LOGIN_EMAIL` / `LOGIN_PASSWORD` | — | Credentials typed at sign-in |
+| `SKIP_CONNECTORS` | `Enable all connectors,Google Search` | Rows the bot must never touch (substring match) |
+| `MAX_CONNECTORS` | `3` | Safety cap per run |
+| `BROWSER_CHANNEL` | `chrome` | `chrome` = real Chrome, empty = bundled Chromium |
+| `USE_INCOGNITO_WINDOW` | `true` | Launch Chrome with `--incognito` |
+| `SLOW_MO` | `120` | Delay (ms) between actions |
+| `MANUAL_STEP_TIMEOUT` | `180000` | Pause for you to finish 2FA by hand |
+
+> [!IMPORTANT]
+> Leave `HEADLESS=false`. Google's sign-in and OAuth consent screens routinely
+> block headless browsers, and a real window is also what lets you complete a
+> 2FA challenge when one appears.
+
+> [!WARNING]
+> `.env` holds a plaintext password. It is already in `.gitignore` — never
+> commit it. Prefer a dedicated test account over a personal one.
+
+## How it stays reliable
+
+- **No brittle CSS selectors.** Every element is located by its accessible role
+  and visible text, with a ranked list of fallbacks
+  ([`firstVisible`](./src/utils.js)).
+- **The menu is re-opened for each connector**, because the OAuth popup tears it
+  down and because an authorized row disappears from the "Enable actions" list.
+- **Deep scrolling** walks every scrollable container, not just the document, so
+  the *Allow* button is reachable even when it lives inside a nested pane.
+- **Allow is retried** — Google keeps it disabled until the consent text has
+  genuinely been scrolled.
+- **Popup or same-tab** consent flows are both handled.
+- **Failures are isolated**: if one connector breaks, stray windows are closed
+  and the bot moves on to the next, then reports which ones failed.
+
+## Project layout
+
+```
+src/
+  index.js            orchestration + summary
+  config.js           .env parsing and validation
+  browser.js          incognito launch (Chrome, Chromium fallback)
+  utils.js            resilient click / type / scroll helpers
+  logger.js           coloured logs + screenshots
+  steps/
+    login.js          email, password, 2FA pause
+    onboarding.js     "I understand" + "Get started"
+    connectors.js     the Connectors menu loop
+    consent.js        account chooser -> scroll -> Allow
+```
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---------|-----|
+| `Could not find "Connectors"` | The app was still loading. Raise `TIMEOUT`, or check `runs/<timestamp>/prompt-ready.png` for the real button label. |
+| Wrong rows get enabled | Adjust `SKIP_CONNECTORS` to match the exact labels you see in the log line *"connectors awaiting authorization: …"*. |
+| `Could not click "Allow"` | The consent screen used a different label — add it to `clickAllow` in [consent.js](./src/steps/consent.js). |
+| Chrome won't launch | Set `BROWSER_CHANNEL=` (empty) and run `npx playwright install chromium`. |
+| Sign-in blocked | Run once with `--keep-open`, log in manually to clear the security prompt, then re-run. |
