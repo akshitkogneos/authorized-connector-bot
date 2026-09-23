@@ -36,10 +36,43 @@ export const config = {
   manualStepTimeout: int(process.env.MANUAL_STEP_TIMEOUT, 180_000),
   screenshots: bool(process.env.SCREENSHOTS, true),
 
+  // Verification (read-only audit that runs after the work phases)
+  doVerify: bool(process.env.DO_VERIFY, true),
+  // Optional allow-lists: names that MUST end up enabled/installed. Empty means
+  // "whatever the UI offers" - i.e. no row may be left un-enabled/un-installed.
+  expectConnectors: list(process.env.EXPECT_CONNECTORS, ''),
+  expectSkills: list(process.env.EXPECT_SKILLS, ''),
+
   // Batch mode (npm run batch)
   usersCsv: process.env.USERS_CSV || 'data/users.csv',
   batchDelay: int(process.env.BATCH_DELAY, 5_000),
 };
+
+/**
+ * Turns CLI flags into the phase map used by runUserFlow().
+ *
+ * Rules:
+ *   --verify-only        audit only, change nothing
+ *   --connectors-only    connectors (+ verification of connectors)
+ *   --skills-only        skills (+ verification of skills)
+ *   --verify             force verification on even if DO_VERIFY=false
+ *
+ * Shared by src/index.js and src/batch.js so both modes behave identically.
+ */
+export function resolvePhases(args = []) {
+  const has = (name) => args.includes(`--${name}`);
+
+  if (has('verify-only')) return { connectors: false, skills: false, verify: true };
+
+  const onlySkills = has('skills-only');
+  const onlyConnectors = has('connectors-only');
+
+  return {
+    connectors: onlySkills ? false : onlyConnectors || config.doConnectors,
+    skills: onlyConnectors ? false : onlySkills || config.doSkills,
+    verify: has('verify') || config.doVerify,
+  };
+}
 
 export function assertConfig() {
   const missing = [];

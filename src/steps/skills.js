@@ -30,15 +30,20 @@ const navSkills = (page) => [
   page.getByText(/^skills$/i),
 ];
 
+/** Clicks "Skills" in the left nav and waits for the panel to settle. */
+export async function openSkillsPage(page) {
+  log.step('Opening Skills');
+  await clickFirst(navSkills(page), 'Skills (left nav)', { timeout: 20_000 });
+  await sleep(3_500);
+  await shoot(page, 'skills-page');
+}
+
 /**
  * Step 11-13: open Skills from the left nav, click "Browse Skills", then press
  * every "+ Install" button in the dialog.
  */
 export async function installSkills(page) {
-  log.step('Opening Skills');
-  await clickFirst(navSkills(page), 'Skills (left nav)', { timeout: 20_000 });
-  await sleep(3_500);
-  await shoot(page, 'skills-page');
+  await openSkillsPage(page);
 
   await openMarketplace(page);
   await sleep(3_500);
@@ -114,7 +119,7 @@ export async function installSkills(page) {
  *      way in is the "+" icon at the top of the Skills panel
  *   C. positional fallback for A if the label ever changes
  */
-async function openMarketplace(page) {
+export async function openMarketplace(page) {
   const strategies = [
     ['"Browse Skills" button', () => clickBrowseSkills(page)],
     ['"+" in the Skills panel header', () => clickPlusIcon(page)],
@@ -226,6 +231,35 @@ async function clickMiddleButton(page) {
  * "Installed" / "Open" / "Uninstall" are deliberately excluded.
  */
 async function collectInstallable(page) {
+  const rows = (await scanCards(page)).filter((r) => r.state === 'install');
+  log.info(`skills awaiting install: ${rows.map((r) => `"${r.name}"`).join(', ') || 'none'}`);
+  return rows;
+}
+
+/**
+ * Read-only snapshot of the marketplace: every card that still offers
+ * "Install" (missing) and every card that no longer does (installed).
+ *
+ * The caller must already be on the Skills page; this opens the marketplace
+ * but never clicks a card.
+ */
+export async function readSkillStates(page) {
+  await openMarketplace(page);
+  await sleep(3_000);
+
+  const cards = await scanCards(page);
+  return {
+    missing: cards.filter((c) => c.state === 'install').map((c) => c.name),
+    installed: cards.filter((c) => c.state === 'installed').map((c) => c.name),
+  };
+}
+
+/**
+ * Every visible marketplace button, de-duplicated by position and tagged with
+ * its state: `install` (still offered) or `installed` (Installed / Open /
+ * Uninstall / Remove). Anything else is ignored - it is not a card control.
+ */
+async function scanCards(page) {
   const buttons = page.locator(INSTALL_BUTTONS);
   const total = await buttons.count().catch(() => 0);
 
@@ -237,19 +271,25 @@ async function collectInstallable(page) {
     if (!(await button.isVisible().catch(() => false))) continue;
 
     const text = label(await button.textContent().catch(() => ''));
-    if (!/^install$/i.test(text)) continue;
+    const state = cardState(text);
+    if (!state) continue;
 
     const box = await button.boundingBox().catch(() => null);
     const key = box ? `${Math.round(box.x)}:${Math.round(box.y)}` : `idx-${i}`;
     if (seen.has(key)) continue;
     seen.add(key);
 
-    rows.push({ name: await skillName(button, rows.length), button });
+    rows.push({ name: await skillName(button, rows.length), state, button });
   }
 
-  log.info(`skills awaiting install: ${rows.map((r) => `"${r.name}"`).join(', ') || 'none'}`);
   return rows;
 }
+
+const cardState = (text) => {
+  if (/^install$/i.test(text)) return 'install';
+  if (/^(installed|uninstall|open|remove|added)$/i.test(text)) return 'installed';
+  return null;
+};
 
 /**
  * Finds the skill name for an install button by climbing its ancestors

@@ -5,10 +5,11 @@ import { login } from './steps/login.js';
 import { dismissOnboarding } from './steps/onboarding.js';
 import { authorizeConnectors } from './steps/connectors.js';
 import { installSkills } from './steps/skills.js';
+import { verifyUser } from './steps/verify.js';
 
 /**
  * The complete per-user journey: sign in, clear onboarding, authorize
- * connectors, install skills.
+ * connectors, install skills, then verify the end state.
  *
  * Shared by the single-user entry point (src/index.js) and the batch runner
  * (src/batch.js) so both always behave identically.
@@ -23,6 +24,7 @@ export async function runUserFlow({ page, context, user, phases }) {
     connectorsFailed: [],
     installed: 0,
     skillsFailed: [],
+    verify: null,
   };
 
   await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded' });
@@ -61,8 +63,41 @@ export async function runUserFlow({ page, context, user, phases }) {
     log.info('skipping the skills phase');
   }
 
+  if (phases.verify) {
+    try {
+      result.verify = await verifyUser(page, verifyScope(phases));
+    } catch (err) {
+      log.error(`verification phase failed: ${err.message}`);
+      await shoot(page, 'verify-failure');
+      result.verify = failedVerification(err.message);
+    }
+  }
+
   return result;
 }
+
+/**
+ * What the audit should look at.
+ *
+ * When a single work phase was requested we only verify that phase - reporting
+ * "10 skills missing" after an explicit `--connectors-only` run would be noise.
+ * With no work phase at all (`--verify-only`) everything is checked.
+ */
+function verifyScope({ connectors, skills }) {
+  if (!connectors && !skills) return { connectors: true, skills: true };
+  return { connectors, skills };
+}
+
+const failedVerification = (message) => ({
+  connectorsEnabled: [],
+  connectorsPending: [],
+  connectorsSkipped: [],
+  skillsInstalled: [],
+  skillsMissing: [],
+  missingExpected: [],
+  errors: [`phase error: ${message}`],
+  ok: false,
+});
 
 /**
  * Waits until the composer is up. Its three left icons are icon-only buttons

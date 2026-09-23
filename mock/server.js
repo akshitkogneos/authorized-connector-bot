@@ -15,6 +15,7 @@ const PASSWORD = process.env.MOCK_PASSWORD || 'secret123';
 
 const CONNECTORS = ['Enable all connectors', 'Google Search', 'Gmail', 'Google Calendar', 'Google Drive'];
 const ACTIONABLE = CONNECTORS.slice(2);
+const SKILLS = ['Acme /deal-desk', 'Acme /weather-report', 'Acme /travel-plan', 'Acme /expense-audit'];
 
 const page = (title, body, script = '') => `<!doctype html>
 <html><head><meta charset="utf-8"><title>${title}</title><style>
@@ -32,6 +33,9 @@ const page = (title, body, script = '') => `<!doctype html>
   .toolbar{position:relative;display:flex;gap:8px;margin-top:24px}
   li{list-style:none;padding:14px;border:1px solid #ddd;border-radius:8px;margin:8px 0;cursor:pointer}
   .scroller{height:260px;overflow-y:auto;border:1px solid #ddd;padding:12px;border-radius:8px}
+  nav{display:flex;gap:16px;margin-bottom:16px}
+  .card{border:1px solid #ddd;border-radius:10px;padding:14px;margin:10px 0;display:flex;justify-content:space-between;align-items:center;cursor:pointer}
+  .dialog{position:fixed;inset:10% 20%;background:#fff;border:1px solid #ddd;border-radius:14px;padding:20px;overflow:auto;z-index:20;box-shadow:0 6px 24px rgba(0,0,0,.2)}
 </style></head><body><div class="wrap">${body}</div><script>${script}</script></body></html>`;
 
 /* ----------------------------- sign-in ----------------------------- */
@@ -63,19 +67,41 @@ const appPage = (user) =>
        <h3>Welcome</h3><p>Let's set up your workspace.</p><button class="primary" id="start">Get started</button></div></div>
 
      <div id="app" style="display:none">
-       <h2>Prompt</h2>
-       <textarea rows="4" style="width:100%" placeholder="Ask anything"></textarea>
-       <div class="toolbar">
-         <button aria-label="Upload files">+</button>
-         <button>Tools</button>
-         <button id="conn">Connectors</button>
-         <div class="menu" id="menu" style="display:none"></div>
+       <nav><a href="#chat" id="nav-chat">Chat</a><a href="#skills" id="nav-skills">Skills</a></nav>
+
+       <div id="chat">
+         <h2>Prompt</h2>
+         <textarea rows="4" style="width:100%" placeholder="Ask anything"></textarea>
+         <div class="toolbar">
+           <button aria-label="Upload files">+</button>
+           <button>Tools</button>
+           <button id="conn">Connectors</button>
+           <div class="menu" id="menu" style="display:none"></div>
+         </div>
+       </div>
+
+       <div id="skills" style="display:none">
+         <h2>Skills</h2>
+         <div id="installed-list"></div>
+         <div class="toolbar">
+           <button>Create Skill</button>
+           <button class="primary" id="browse">Browse Skills</button>
+           <button>Import</button>
+         </div>
+       </div>
+
+       <div class="dialog" id="market" style="display:none">
+         <h3>Skills marketplace</h3>
+         <div id="cards"></div>
+         <button id="close-market">Close</button>
        </div>
      </div>`,
     `const $=s=>document.querySelector(s);
      const NAMES=${JSON.stringify(CONNECTORS)};
+     const SKILLS=${JSON.stringify(SKILLS)};
      const USER=${JSON.stringify(user)};
      const state={}; NAMES.slice(2).forEach(n=>state[n]=false);
+     const skillState={}; SKILLS.forEach(n=>skillState[n]=false);
 
      $('#understand').onclick=()=>{ $('#ack').style.display='none'; $('#welcome').style.display='flex'; };
      $('#start').onclick=()=>{ $('#welcome').style.display='none'; $('#app').style.display='block'; };
@@ -93,7 +119,32 @@ const appPage = (user) =>
      }
      $('#conn').onclick=()=>{ const m=$('#menu'); const open=m.style.display==='block';
        m.style.display=open?'none':'block'; if(!open) render(); };
-     window.addEventListener('message',e=>{ if(e.data&&e.data.granted){ state[e.data.granted]=true; render(); } });`,
+     // The real menu closes on Escape - mirror that, otherwise it stays on top
+     // of the nav and eats clicks meant for the Skills link.
+     document.addEventListener('keydown',e=>{ if(e.key==='Escape') $('#menu').style.display='none'; });
+     window.addEventListener('message',e=>{ if(e.data&&e.data.granted){ state[e.data.granted]=true; render(); } });
+
+     /* ---- skills ---- */
+     // Mirrors the real markup: a <ucs-luminous-button> host wrapping a
+     // button.luminous-button whose text carries the "add_2" icon ligature.
+     function renderCards(){
+       $('#cards').innerHTML = SKILLS.map(n=>
+         '<div class="card" role="button"><span>'+n+'</span>'+
+         '<ucs-luminous-button><button class="luminous-button" data-n="'+n+'">'+
+         (skillState[n]?'check Installed':'add_2 Install')+'</button></ucs-luminous-button></div>').join('');
+       document.querySelectorAll('.luminous-button').forEach(b=>b.onclick=ev=>{
+         ev.stopPropagation();
+         skillState[b.dataset.n]=true; renderCards(); renderInstalled();
+       });
+     }
+     function renderInstalled(){
+       const done=SKILLS.filter(n=>skillState[n]);
+       $('#installed-list').innerHTML = done.map(n=>'<div class="row"><span>'+n+'</span></div>').join('');
+     }
+     $('#nav-skills').onclick=()=>{ $('#chat').style.display='none'; $('#skills').style.display='block'; };
+     $('#nav-chat').onclick=()=>{ $('#skills').style.display='none'; $('#market').style.display='none'; $('#chat').style.display='block'; };
+     $('#browse').onclick=()=>{ renderCards(); $('#market').style.display='block'; };
+     $('#close-market').onclick=()=>{ $('#market').style.display='none'; };`,
   );
 
 /* ------------------------------ oauth ------------------------------ */

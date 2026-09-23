@@ -1,20 +1,15 @@
 #!/usr/bin/env node
 import path from 'node:path';
-import { assertConfig, config } from './config.js';
+import { assertConfig, config, resolvePhases } from './config.js';
 import { launchBrowser } from './browser.js';
 import { log, runDir } from './logger.js';
 import { runUserFlow } from './flow.js';
 import { csvUsers, runBatch, CSV_PATH } from './batch.js';
 
 const KEEP_OPEN = process.argv.includes('--keep-open');
-const ONLY_SKILLS = process.argv.includes('--skills-only');
-const ONLY_CONNECTORS = process.argv.includes('--connectors-only');
 const FORCE_SINGLE = process.argv.includes('--single');
 
-export const phasesFromArgs = () => ({
-  connectors: ONLY_SKILLS ? false : ONLY_CONNECTORS || config.doConnectors,
-  skills: ONLY_CONNECTORS ? false : ONLY_SKILLS || config.doSkills,
-});
+export const phasesFromArgs = () => resolvePhases(process.argv.slice(2));
 
 /**
  * Picks the mode.
@@ -71,6 +66,7 @@ async function runSingle() {
     if (result.connectorsFailed.length) log.error(`connectors failed: ${result.connectorsFailed.join(', ')}`);
     log.ok(`skills installed: ${result.installed}`);
     if (result.skillsFailed.length) log.error(`skills failed: ${result.skillsFailed.join(', ')}`);
+    printVerification(result.verify);
     if (config.screenshots) log.info(`screenshots saved in ${runDir()}`);
 
     if (KEEP_OPEN) {
@@ -78,7 +74,8 @@ async function runSingle() {
       await new Promise(() => {});
     }
 
-    return result.connectorsFailed.length || result.skillsFailed.length ? 1 : 0;
+    const verifyFailed = result.verify ? !result.verify.ok : false;
+    return result.connectorsFailed.length || result.skillsFailed.length || verifyFailed ? 1 : 0;
   } catch (err) {
     log.error(err.message);
     if (KEEP_OPEN) {
@@ -92,6 +89,28 @@ async function runSingle() {
       await browser.close().catch(() => {});
     }
   }
+}
+
+/** Renders the audit verdict at the end of a single-user run. */
+function printVerification(verify) {
+  if (!verify) return;
+
+  if (verify.ok) {
+    log.ok('verification: PASS - all connectors enabled and all skills installed');
+    return;
+  }
+
+  log.error('verification: FAIL');
+  if (verify.connectorsPending.length) {
+    log.error(`  connectors not enabled: ${verify.connectorsPending.join(', ')}`);
+  }
+  if (verify.skillsMissing.length) {
+    log.error(`  skills not installed: ${verify.skillsMissing.join(', ')}`);
+  }
+  if (verify.missingExpected.length) {
+    log.error(`  expected but never found: ${verify.missingExpected.join(', ')}`);
+  }
+  for (const err of verify.errors) log.error(`  could not check ${err}`);
 }
 
 process.exitCode = await main();

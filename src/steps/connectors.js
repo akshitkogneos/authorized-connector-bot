@@ -83,7 +83,7 @@ export async function authorizeConnectors(page, context, accountEmail) {
 
 /* ------------------------------------------------------------------ */
 
-async function openConnectorsMenu(page) {
+export async function openConnectorsMenu(page) {
   const alreadyOpen = await firstVisible([enableButtons(page), disableButtons(page)], { timeout: 1_200 });
   if (alreadyOpen) return;
 
@@ -91,8 +91,22 @@ async function openConnectorsMenu(page) {
   await sleep(1_500);
 }
 
-async function closeMenu(page) {
+/**
+ * Closes the Sources menu and makes sure it really is gone.
+ *
+ * This matters more than it looks: the menu is a wide overlay that sits on top
+ * of the left nav, so a menu that stayed open swallows the next click - the
+ * skills phase then "clicks Skills" without ever leaving the composer.
+ */
+export async function closeMenu(page) {
   await page.keyboard.press('Escape').catch(() => {});
+  await sleep(400);
+
+  const stillOpen = await firstVisible([enableButtons(page), disableButtons(page)], { timeout: 800 });
+  if (!stillOpen) return;
+
+  log.info('menu still open after Escape - toggling it shut');
+  await clickFirst(connectorsButton(page), 'Connectors (Sources)', { timeout: 5_000, optional: true });
   await sleep(400);
 }
 
@@ -104,7 +118,31 @@ async function closeMenu(page) {
  * de-duplicated by on-screen position.
  */
 async function collectEnableRows(page) {
-  const source = enableButtons(page);
+  const rows = await scanRows(enableButtons(page));
+  log.info(`connectors awaiting authorization: ${labelList(rows)}`);
+  return rows;
+}
+
+/**
+ * Read-only snapshot of the Sources menu: which rows still offer
+ * "Enable actions" (pending), and which already read "Disable actions"
+ * (enabled). Used by the verification phase, which must never click.
+ */
+export async function readConnectorStates(page) {
+  await openConnectorsMenu(page);
+
+  const pending = await scanRows(enableButtons(page));
+  const enabled = await scanRows(disableButtons(page));
+
+  return {
+    pending: pending.filter((r) => !isSkipped(r.label)).map((r) => r.label),
+    skipped: pending.filter((r) => isSkipped(r.label)).map((r) => r.label),
+    enabled: enabled.map((r) => r.label),
+  };
+}
+
+/** De-duplicated, labelled list of the visible buttons behind `source`. */
+async function scanRows(source) {
   const total = await source.count().catch(() => 0);
 
   const rows = [];
@@ -122,9 +160,10 @@ async function collectEnableRows(page) {
     rows.push({ label: await rowLabel(button, rows.length), button });
   }
 
-  log.info(`connectors awaiting authorization: ${rows.map((r) => `"${r.label}"`).join(', ') || 'none'}`);
   return rows;
 }
+
+const labelList = (rows) => rows.map((r) => `"${r.label}"`).join(', ') || 'none';
 
 /**
  * Walks up from the button to the row that holds the connector name.
@@ -157,7 +196,7 @@ async function rowLabel(button, fallbackIndex) {
   return label || `connector #${fallbackIndex + 1}`;
 }
 
-const isSkipped = (label) =>
+export const isSkipped = (label) =>
   config.skipConnectors.some((skip) => label.toLowerCase().includes(skip.toLowerCase()));
 
 /** Clicks one "Enable actions" button and drives the consent flow it opens. */
