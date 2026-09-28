@@ -2,6 +2,7 @@ import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { clean, clickFirst, firstVisible, sleep } from '../utils.js';
 import { completeConsent } from './consent.js';
+import { ariaContains, ariaEquals, re, strip } from '../i18n.js';
 
 /**
  * Selector notes (discovered with tools/inspect.js against Gemini Enterprise):
@@ -18,14 +19,18 @@ import { completeConsent } from './consent.js';
  */
 const BUTTON_HOSTS = 'md-outlined-button, md-filled-button, md-text-button, md-filled-tonal-button, button, [role="button"]';
 
-const enableButtons = (page) => page.locator(`:is(${BUTTON_HOSTS}):has-text("Enable actions")`);
-const disableButtons = (page) => page.locator(`:is(${BUTTON_HOSTS}):has-text("Disable actions")`);
+// Labels come from src/i18n.js so any UI language works. Whole-word matching
+// keeps "Deshabilitar acciones" (disable) from counting as "Habilitar
+// acciones" (enable).
+const enableButtons = (page) =>
+  page.locator(`:is(${BUTTON_HOSTS})`).filter({ hasText: re('enableActions', { exact: false }) });
+const disableButtons = (page) =>
+  page.locator(`:is(${BUTTON_HOSTS})`).filter({ hasText: re('disableActions', { exact: false }) });
 
-const connectorsButton = (page) => [
-  page.locator('[aria-label="Sources"]'),
-  page.locator('[aria-label="Connectors"]'),
-  page.getByRole('button', { name: /^(sources|connectors)$/i }),
-  page.locator('[aria-label*="source" i], [aria-label*="connector" i]'),
+export const connectorsButton = (page) => [
+  page.locator(ariaEquals('sources')),
+  page.getByRole('button', { name: re('sources') }),
+  page.locator(ariaContains('sources')),
 ];
 
 /**
@@ -187,11 +192,7 @@ async function rowLabel(button, fallbackIndex) {
     })
     .catch(() => '');
 
-  const label = clean(raw)
-    .replace(/enable actions/gi, '')
-    .replace(/disable actions/gi, '')
-    .replace(/toggle source/gi, '')
-    .trim();
+  const label = clean(strip(raw, 'enableActions', 'disableActions').replace(/toggle source/gi, ''));
 
   return label || `connector #${fallbackIndex + 1}`;
 }
@@ -216,8 +217,8 @@ async function enableOne(page, context, row, accountEmail) {
     log.warn('no popup detected - looking for an in-page consent screen');
     const inline = await firstVisible(
       [
-        page.getByText(/choose an account/i),
-        page.getByRole('button', { name: /^allow$/i }),
+        page.getByText(re('chooseAccount', { exact: false })),
+        page.getByRole('button', { name: re('allow') }),
         page.locator('iframe[src*="accounts.google.com"]'),
       ],
       { timeout: 8_000 },

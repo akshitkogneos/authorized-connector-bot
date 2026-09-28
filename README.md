@@ -226,6 +226,46 @@ It covers CRLF endings, a missing trailing newline, a UTF-8 BOM, quoted fields,
 passwords containing `$` or `!`, the `Status` filter, and a `writeCsv`
 round-trip, then validates your real `data/users.csv`.
 
+## Accounts in other languages
+
+Gemini Enterprise and Google's sign-in / consent screens show up in the
+**account's language**, so a Spanish account shows *Habilitar acciones* and
+*Permitir* instead of *Enable actions* and *Allow*. The bot recognises every
+button in:
+
+**English · Spanish · Portuguese · French · German · Italian**
+
+Nothing to configure. Mixed-language CSVs work too, because each button is
+matched against all languages at once.
+
+All wordings live in one file, [src/i18n.js](./src/i18n.js). Matching ignores
+case and accents, and uses whole words. That last part matters:
+*Deshabilitar acciones* (disable) contains *habilitar acciones* (enable), and
+*Desinstalar* contains *Instalar*.
+
+> [!NOTE]
+> The non-English Gemini Enterprise wordings have only been tested against the
+> mock app, not a real translated account. If a run stops on a button, look at
+> the screenshot in `runs/<timestamp>/`, then add the exact wording to the
+> matching list in `src/i18n.js`.
+
+Test it offline. The mock app can be served in Spanish or Portuguese:
+
+```bash
+npm run mock:es     # terminal 1 (or mock:pt)
+npm run test:mock   # terminal 2
+npm run test:i18n   # no server needed
+```
+
+`test:i18n` renders every wording in headless Chromium and finds it the way the
+bot does. A pattern Playwright can't use doesn't raise an error during a run;
+the button just never shows up. That's why this test exists.
+
+Optional: `BROWSER_LOCALE=en-US` (or `es-ES`, `pt-BR`, …) sets the language
+the browser asks for. Google normally prefers the account's saved language, so
+expect this to matter only for accounts that have none. It never changes the
+account itself.
+
 ## Configuration
 
 All settings live in `.env` — see [.env.example](./.env.example) for the full,
@@ -243,6 +283,7 @@ commented list. The ones you are most likely to touch:
 | `EXPECT_CONNECTORS` / `EXPECT_SKILLS` | empty | Names that must be enabled/installed for a user to pass (substring match) |
 | `BROWSER_CHANNEL` | `chrome` | `chrome` = real Chrome, empty = bundled Chromium |
 | `USE_INCOGNITO_WINDOW` | `true` | Launch Chrome with `--incognito` |
+| `BROWSER_LOCALE` | empty | Language the browser asks for, e.g. `en-US`, `es-ES` (empty = machine default) |
 | `SLOW_MO` | `120` | Delay (ms) between actions |
 | `MANUAL_STEP_TIMEOUT` | `180000` | Pause for you to finish 2FA by hand |
 | `USERS_CSV` | `data/users.csv` | Accounts for batch mode |
@@ -343,6 +384,7 @@ src/
   flow.js             the per-user journey, shared by both entry points
   csv.js              dependency-free CSV read/write
   config.js           .env parsing, validation, CLI phase resolution
+  i18n.js             every on-screen wording, in en / es / pt / fr / de / it
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
   logger.js           coloured logs + per-user screenshot folders
@@ -356,16 +398,18 @@ src/
 data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
 mock/
-  server.js           offline stand-in for the real app (npm run mock)
+  server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt)
 tools/
   inspect.js          shadow-DOM selector discovery (composer | skills)
   test-csv.js         offline CSV test suite (npm run test:csv)
+  test-i18n.js        every wording, located in a real browser (npm run test:i18n)
 ```
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
+| Stops with `Could not find "…"` on a non-English account | That translation isn't in the list yet. Copy the exact button text from the screenshot in `runs/<timestamp>/` into the matching list in [src/i18n.js](./src/i18n.js), then run `npm run test:i18n`. |
 | `npm start` uses the CSV, not `LOGIN_EMAIL` | That's the default once `data/users.csv` has a usable row. Use `npm start -- --single` for the `.env` account. |
 | `npm start` uses `.env`, not the CSV | Every CSV row was filtered out — check the `Email`/`Password` columns and that `Status` is `Active` (or pass `--all`). Run `npm run test:csv` to validate the file. |
 | `Could not find "Connectors"` | The app was still loading. Raise `TIMEOUT`, or check `runs/<timestamp>/prompt-ready.png` for the real button label. |

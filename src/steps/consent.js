@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { clickFirst, firstVisible, scrollToBottom, sleep, waitForClose } from '../utils.js';
+import { ariaContains, re } from '../i18n.js';
 
 /**
  * Drives the Google OAuth consent window that opens after "Enable actions":
@@ -25,8 +26,8 @@ export async function completeConsent(popup, connectorLabel, accountEmail) {
   // Some tenants insert an extra "Continue"/"Sign in" interstitial.
   await clickFirst(
     [
-      popup.getByRole('button', { name: /^continue$/i }),
-      popup.locator('button:has-text("Continue")'),
+      popup.getByRole('button', { name: re('continue') }),
+      popup.locator('button').filter({ hasText: re('continue') }),
     ],
     'Continue (interstitial)',
     { timeout: 4_000, optional: true },
@@ -55,7 +56,7 @@ async function chooseAccount(popup, email) {
       popup.locator(`li:has-text("${email}")`),
       popup.locator(`div[role="link"]:has-text("${email}")`),
       popup.getByText(email, { exact: false }),
-      popup.getByText(/choose an account/i).locator('xpath=following::*[self::li or @role="link"][1]'),
+      popup.getByText(re('chooseAccount', { exact: false })).locator('xpath=following::*[self::li or @role="link"][1]'),
     ],
     { timeout: 20_000 },
   );
@@ -89,9 +90,9 @@ async function maybeSelectAllScopes(popup) {
 
   const selectAll = await firstVisible(
     [
-      popup.getByRole('checkbox', { name: /select all/i }),
-      popup.locator('input[type="checkbox"][aria-label*="Select all" i]'),
-      popup.getByText(/^select all$/i),
+      popup.getByRole('checkbox', { name: re('selectAll', { exact: false }) }),
+      popup.locator(`input[type="checkbox"]:is(${ariaContains('selectAll')})`),
+      popup.getByText(re('selectAll')),
     ],
     { timeout: 3_000 },
   );
@@ -113,10 +114,10 @@ async function maybeSelectAllScopes(popup) {
  */
 async function clickAllow(popup) {
   const candidates = () => [
-    popup.getByRole('button', { name: /^allow$/i }),
-    popup.locator('button:has-text("Allow")'),
+    popup.getByRole('button', { name: re('allow') }),
+    popup.locator('button').filter({ hasText: re('allow') }),
     popup.locator('#submit_approve_access button'),
-    popup.getByRole('button', { name: /allow|approve|authorize|accept/i }),
+    popup.getByRole('button', { name: re('allowLoose', { exact: false }) }),
   ];
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {

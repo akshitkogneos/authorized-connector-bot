@@ -16,6 +16,7 @@ import { log } from '../src/logger.js';
 import { firstVisible, sleep } from '../src/utils.js';
 import { login } from '../src/steps/login.js';
 import { dismissOnboarding } from '../src/steps/onboarding.js';
+import { ariaEquals, re } from '../src/i18n.js';
 
 const OUT = path.join(process.cwd(), 'runs', `inspect-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
 
@@ -132,10 +133,10 @@ async function inspectSkills(page, report) {
   log.step('Clicking "Skills" in the left nav');
   const nav = await firstVisible(
     [
-      page.getByRole('link', { name: /^skills$/i }),
-      page.getByRole('button', { name: /^skills$/i }),
-      page.locator('[aria-label="Skills"]'),
-      page.getByText(/^skills$/i),
+      page.getByRole('link', { name: re('skills') }),
+      page.getByRole('button', { name: re('skills') }),
+      page.locator(ariaEquals('skills')),
+      page.getByText(re('skills')),
     ],
     { timeout: 20_000 },
   );
@@ -155,8 +156,10 @@ async function inspectSkills(page, report) {
   log.step('Clicking "Browse Skills"');
   const browse = await firstVisible(
     [
-      page.locator(':is(md-outlined-button, md-filled-button, md-text-button, button, [role="button"]):has-text("Browse Skills")'),
-      page.getByRole('button', { name: /browse skills/i }),
+      page
+        .locator('md-outlined-button, md-filled-button, md-text-button, button, [role="button"]')
+        .filter({ hasText: re('browseSkills', { exact: false }) }),
+      page.getByRole('button', { name: re('browseSkills', { exact: false }) }),
       page.locator('[aria-label*="browse" i]'),
     ],
     { timeout: 15_000 },

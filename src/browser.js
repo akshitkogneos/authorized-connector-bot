@@ -20,6 +20,7 @@ export async function launchBrowser() {
     '--no-default-browser-check',
   ];
   if (config.incognitoWindow) args.unshift('--incognito');
+  if (config.locale) args.push(`--lang=${config.locale}`);
 
   const launchOptions = {
     headless: config.headless,
@@ -41,6 +42,8 @@ export async function launchBrowser() {
   const context = await browser.newContext({
     viewport: null,
     acceptDownloads: false,
+    // Sets both navigator.language and the Accept-Language header.
+    ...(config.locale ? { locale: config.locale } : {}),
   });
   context.setDefaultTimeout(config.timeout);
   context.setDefaultNavigationTimeout(config.timeout);
@@ -49,7 +52,7 @@ export async function launchBrowser() {
   log.ok(
     `browser ready (${config.channel || 'chromium'}${config.incognitoWindow ? ', incognito' : ''}${
       config.headless ? ', headless' : ''
-    })`,
+    }${config.locale ? `, locale ${config.locale}` : ''})`,
   );
 
   return { browser, context, page };

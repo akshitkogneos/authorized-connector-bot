@@ -26,6 +26,11 @@ export const config = {
   incognitoWindow: bool(process.env.USE_INCOGNITO_WINDOW, true),
   slowMo: int(process.env.SLOW_MO, 120),
   timeout: int(process.env.TIMEOUT, 45_000),
+  // Language the browser reports to websites (e.g. "en-US", "es-ES", "pt-BR").
+  // Empty = the machine's default. Google normally prefers the account's saved
+  // language, so this mostly matters for accounts without one. The bot
+  // understands every language in src/i18n.js either way.
+  locale: (process.env.BROWSER_LOCALE || '').trim(),
 
   skipConnectors: list(process.env.SKIP_CONNECTORS, 'Enable all connectors,Google Search'),
   maxConnectors: int(process.env.MAX_CONNECTORS, 3),

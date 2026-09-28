@@ -1,5 +1,6 @@
 import { log, shoot } from '../logger.js';
 import { clickFirst, sleep } from '../utils.js';
+import { re } from '../i18n.js';
 
 /**
  * Step 4-5: dismiss the post-login onboarding.
@@ -13,10 +14,10 @@ export async function dismissOnboarding(page) {
 
   await clickFirst(
     [
-      page.getByRole('button', { name: /^i understand$/i }),
-      page.getByRole('button', { name: /i understand/i }),
-      page.locator('button:has-text("I understand")'),
-      page.getByText(/^i understand$/i),
+      page.getByRole('button', { name: re('understand') }),
+      page.getByRole('button', { name: re('understand', { exact: false }) }),
+      page.locator('button').filter({ hasText: re('understand', { exact: false }) }),
+      page.getByText(re('understand')),
     ],
     'I understand',
     { timeout: 12_000, optional: true },
@@ -27,11 +28,10 @@ export async function dismissOnboarding(page) {
   const dialog = page.getByRole('dialog');
   await clickFirst(
     [
-      dialog.getByRole('button', { name: /get started/i }),
-      dialog.locator('button:has-text("Get started")'),
-      page.getByRole('button', { name: /^get started$/i }),
-      page.getByRole('button', { name: /get started|let.s go|continue/i }),
-      page.locator('button:has-text("Get started")'),
+      dialog.getByRole('button', { name: re('getStarted', { exact: false }) }),
+      dialog.locator('button').filter({ hasText: re('getStarted', { exact: false }) }),
+      page.getByRole('button', { name: re('getStarted') }),
+      page.locator('button').filter({ hasText: re('getStarted') }),
     ],
     'Get started',
     { timeout: 12_000, optional: true },

@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { clean, clickFirst, firstVisible, sleep } from '../utils.js';
+import { ariaEquals, re, words } from '../i18n.js';
 
 /**
  * Selector notes (from tools/inspect.js skills):
@@ -24,10 +25,10 @@ const ICON_WORDS = /\b(add_2|add_circle|add|check|check_circle|done|downloading|
 const label = (raw) => clean((raw || '').replace(ICON_WORDS, ' '));
 
 const navSkills = (page) => [
-  page.getByRole('link', { name: /^skills$/i }),
-  page.getByRole('button', { name: /^skills$/i }),
-  page.locator('[aria-label="Skills"]'),
-  page.getByText(/^skills$/i),
+  page.getByRole('link', { name: re('skills') }),
+  page.getByRole('button', { name: re('skills') }),
+  page.locator(ariaEquals('skills')),
+  page.getByText(re('skills')),
 ];
 
 /** Clicks "Skills" in the left nav and waits for the panel to settle. */
@@ -156,9 +157,11 @@ async function marketplaceOpen(page) {
 async function clickBrowseSkills(page) {
   const button = await firstVisible(
     [
-      page.locator(':is(md-filled-button, md-filled-tonal-button, md-outlined-button, md-text-button, button):has-text("Browse Skills")'),
-      page.getByRole('button', { name: /browse skills/i }),
-      page.getByRole('menuitem', { name: /browse skills/i }),
+      page
+        .locator('md-filled-button, md-filled-tonal-button, md-outlined-button, md-text-button, button')
+        .filter({ hasText: re('browseSkills', { exact: false }) }),
+      page.getByRole('button', { name: re('browseSkills', { exact: false }) }),
+      page.getByRole('menuitem', { name: re('browseSkills', { exact: false }) }),
     ],
     { timeout: 8_000 },
   );
@@ -172,12 +175,10 @@ async function clickBrowseSkills(page) {
  * than the dialog, follow the "Browse"/"Marketplace" entry.
  */
 async function clickPlusIcon(page) {
+  // One locator per wording keeps the preference order from src/i18n.js
+  // (browse > add/new > create), so "Create skill" is only a last resort.
   const labelled = await firstVisible(
-    [
-      page.locator('[aria-label*="browse skill" i]'),
-      page.locator('[aria-label*="add skill" i], [aria-label*="new skill" i]'),
-      page.locator('[aria-label*="install skill" i], [aria-label*="create skill" i]'),
-    ],
+    words('addSkill').map((w) => page.locator(`[aria-label*="${w.replace(/"/g, '\\"')}" i]`)),
     { timeout: 4_000 },
   );
 
@@ -286,8 +287,8 @@ async function scanCards(page) {
 }
 
 const cardState = (text) => {
-  if (/^install$/i.test(text)) return 'install';
-  if (/^(installed|uninstall|open|remove|added)$/i.test(text)) return 'installed';
+  if (re('install').test(text)) return 'install';
+  if (re('installed').test(text)) return 'installed';
   return null;
 };
 

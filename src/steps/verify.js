@@ -1,8 +1,9 @@
 import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { firstVisible, sleep } from '../utils.js';
-import { closeMenu, readConnectorStates } from './connectors.js';
+import { closeMenu, connectorsButton, readConnectorStates } from './connectors.js';
 import { openSkillsPage, readSkillStates } from './skills.js';
+import { ariaEquals, re } from '../i18n.js';
 
 /**
  * Phase 3 - verification.
@@ -90,9 +91,9 @@ async function returnToComposer(page) {
 
   const home = await firstVisible(
     [
-      page.getByRole('link', { name: /^(chat|home|new chat)$/i }),
-      page.getByRole('button', { name: /^(chat|home|new chat)$/i }),
-      page.locator('[aria-label*="new chat" i], [aria-label="Home"], [aria-label="Chat"]'),
+      page.getByRole('link', { name: re('home') }),
+      page.getByRole('button', { name: re('home') }),
+      page.locator(ariaEquals('home')),
     ],
     { timeout: 4_000 },
   );
@@ -113,16 +114,7 @@ async function returnToComposer(page) {
 }
 
 const composerVisible = async (page, timeout) =>
-  Boolean(
-    await firstVisible(
-      [
-        page.locator('[aria-label="Sources"]'),
-        page.locator('[aria-label*="source" i], [aria-label*="connector" i]'),
-        page.getByRole('button', { name: /^(sources|connectors)$/i }),
-      ],
-      { timeout },
-    ),
-  );
+  Boolean(await firstVisible(connectorsButton(page), { timeout }));
 
 async function checkSkills(page, report) {
   try {

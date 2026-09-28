@@ -1,6 +1,7 @@
 import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { clickFirst, firstVisible, sleep, typeInto } from '../utils.js';
+import { re } from '../i18n.js';
 
 const emailField = (page) => [
   page.locator('input[type="email"]:visible'),
@@ -8,23 +9,23 @@ const emailField = (page) => [
   page.locator('input[name="identifier"]'),
   page.locator('input[name="email"]'),
   page.locator('input[name="username"]'),
-  page.getByLabel(/email|e-mail|user\s*name/i),
-  page.getByPlaceholder(/email|e-mail|user\s*name/i),
+  page.getByLabel(re('emailField', { exact: false })),
+  page.getByPlaceholder(re('emailField', { exact: false })),
 ];
 
 const passwordField = (page) => [
   page.locator('input[type="password"]:visible'),
   page.locator('input[name="Passwd"]'),
   page.locator('input[name="password"]'),
-  page.getByLabel(/password/i),
-  page.getByPlaceholder(/password/i),
+  page.getByLabel(re('passwordField', { exact: false })),
+  page.getByPlaceholder(re('passwordField', { exact: false })),
 ];
 
 const nextButton = (page) => [
   page.locator('#identifierNext button, #passwordNext button'),
-  page.getByRole('button', { name: /^(next|continue|sign in|log in|submit)$/i }),
+  page.getByRole('button', { name: re('next') }),
   page.locator('button[type="submit"]:visible'),
-  page.getByRole('button', { name: /next|continue|sign\s*in|log\s*in/i }),
+  page.getByRole('button', { name: re('next', { exact: false }) }),
 ];
 
 /**
@@ -85,10 +86,7 @@ async function assertSignedIn(page, email) {
 
   while (Date.now() < deadline) {
     const rejected = await firstVisible(
-      [
-        page.getByText(/wrong password|incorrect password|couldn.t sign you in/i),
-        page.getByText(/couldn.t find your Google Account|enter a valid email/i),
-      ],
+      [page.getByText(re('signInRejected', { exact: false }))],
       { timeout: 500 },
     );
     if (rejected) {
@@ -113,8 +111,8 @@ async function waitForChallenge(page) {
   await sleep(2_500);
   const challenge = await firstVisible(
     [
-      page.getByText(/2-step verification|verify it.s you|check your (phone|device)/i),
-      page.getByText(/enter the code|passkey|authenticator/i),
+      page.getByText(re('challenge', { exact: false })),
+      page.getByText(re('challengeDetail', { exact: false })),
       page.locator('input[name="totpPin"], input[type="tel"]:visible'),
     ],
     { timeout: 2_000 },
@@ -130,7 +128,7 @@ async function waitForChallenge(page) {
   const deadline = Date.now() + config.manualStepTimeout;
   while (Date.now() < deadline) {
     const stillThere = await firstVisible(
-      [page.getByText(/2-step verification|verify it.s you|check your (phone|device)/i)],
+      [page.getByText(re('challenge', { exact: false }))],
       { timeout: 1_000 },
     );
     if (!stillThere) {

@@ -1,6 +1,7 @@
 import { config } from './config.js';
 import { log, shoot } from './logger.js';
 import { firstVisible, sleep } from './utils.js';
+import { ariaContains, ariaEquals } from './i18n.js';
 import { login } from './steps/login.js';
 import { dismissOnboarding } from './steps/onboarding.js';
 import { authorizeConnectors } from './steps/connectors.js';
@@ -108,10 +109,10 @@ export async function waitForPrompt(page) {
   log.step('Waiting for the prompt toolbar');
   const ready = await firstVisible(
     [
-      page.locator('[aria-label="Sources"]'),
-      page.locator('[aria-label="Add files"]'),
-      page.locator('[aria-label="Select tools"]'),
-      page.locator('[aria-label*="source" i], [aria-label*="connector" i]'),
+      page.locator(ariaEquals('sources')),
+      page.locator(ariaEquals('addFiles')),
+      page.locator(ariaEquals('selectTools')),
+      page.locator(ariaContains('sources')),
       page.getByRole('textbox'),
     ],
     { timeout: config.timeout },

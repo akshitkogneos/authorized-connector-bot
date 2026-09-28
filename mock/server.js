@@ -6,6 +6,7 @@
  * OAuth popup (account chooser -> scroll-gated Allow) -> "Disable actions".
  *
  *   node mock/server.js            # then point TARGET_URL at the printed URL
+ *   MOCK_LANG=es node mock/server.js   # same app, Spanish UI (also: pt)
  */
 import http from 'node:http';
 
@@ -13,12 +14,75 @@ const PORT = Number(process.env.MOCK_PORT || 5599);
 const EMAIL = process.env.MOCK_EMAIL || 'tester@example.com';
 const PASSWORD = process.env.MOCK_PASSWORD || 'secret123';
 
-const CONNECTORS = ['Enable all connectors', 'Google Search', 'Gmail', 'Google Calendar', 'Google Drive'];
+/*
+ * UI strings per language. The non-English sets deliberately include the
+ * traps a real translated UI has: the "disable" wording contains the "enable"
+ * wording ("Deshabilitar acciones" ⊃ "habilitar acciones") and "Desinstalar"
+ * contains "Instalar".
+ */
+const STRINGS = {
+  en: {
+    signIn: 'Sign in', next: 'Next', email: 'Email', password: 'Password',
+    enterEmail: 'Enter an email', wrongPassword: 'Wrong password',
+    terms: 'Terms', experimental: 'This is an experimental feature.', understand: 'I understand',
+    welcome: 'Welcome', setup: "Let's set up your workspace.", getStarted: 'Get started',
+    chat: 'Chat', skills: 'Skills', prompt: 'Prompt', ask: 'Ask anything',
+    upload: 'Upload files', tools: 'Tools', connectors: 'Connectors',
+    allConnectors: 'Enable all connectors', search: 'Google Search',
+    enable: 'Enable actions', disable: 'Disable actions', toggle: 'Toggle',
+    createSkill: 'Create Skill', browseSkills: 'Browse Skills', import: 'Import',
+    marketplace: 'Skills marketplace', close: 'Close', install: 'Install', installed: 'Installed',
+    chooseAccount: 'Choose an account', toContinue: 'to continue to',
+    wantsAccess: 'wants access to your account', permission: 'Permission',
+    readManage: 'read and manage your', data: 'data',
+    selectAll: 'Select all', cancel: 'Cancel', allow: 'Allow',
+    scrollHint: 'Scroll down to enable Allow.', ready: 'Ready.',
+  },
+  es: {
+    signIn: 'Iniciar sesión', next: 'Siguiente', email: 'Correo electrónico', password: 'Contraseña',
+    enterEmail: 'Introduce un correo electrónico', wrongPassword: 'Contraseña incorrecta',
+    terms: 'Condiciones', experimental: 'Esta es una función experimental.', understand: 'Entiendo',
+    welcome: 'Te damos la bienvenida', setup: 'Configuremos tu espacio de trabajo.', getStarted: 'Comenzar',
+    chat: 'Chat', skills: 'Habilidades', prompt: 'Petición', ask: 'Pregunta lo que quieras',
+    upload: 'Añadir archivos', tools: 'Herramientas', connectors: 'Conectores',
+    allConnectors: 'Habilitar todos los conectores', search: 'Búsqueda de Google',
+    enable: 'Habilitar acciones', disable: 'Deshabilitar acciones', toggle: 'Alternar',
+    createSkill: 'Crear habilidad', browseSkills: 'Explorar habilidades', import: 'Importar',
+    marketplace: 'Mercado de habilidades', close: 'Cerrar', install: 'Instalar', installed: 'Instalado',
+    chooseAccount: 'Elige una cuenta', toContinue: 'para ir a',
+    wantsAccess: 'quiere acceder a tu cuenta', permission: 'Permiso',
+    readManage: 'ver y gestionar tus datos de', data: '',
+    selectAll: 'Seleccionar todo', cancel: 'Cancelar', allow: 'Permitir',
+    scrollHint: 'Desplázate hacia abajo para habilitar Permitir.', ready: 'Listo.',
+  },
+  pt: {
+    signIn: 'Fazer login', next: 'Avançar', email: 'E-mail', password: 'Senha',
+    enterEmail: 'Digite um e-mail', wrongPassword: 'Senha incorreta',
+    terms: 'Termos', experimental: 'Este é um recurso experimental.', understand: 'Entendi',
+    welcome: 'Boas-vindas', setup: 'Vamos configurar seu espaço de trabalho.', getStarted: 'Começar',
+    chat: 'Chat', skills: 'Habilidades', prompt: 'Comando', ask: 'Pergunte qualquer coisa',
+    upload: 'Adicionar arquivos', tools: 'Ferramentas', connectors: 'Conectores',
+    allConnectors: 'Ativar todos os conectores', search: 'Pesquisa Google',
+    enable: 'Ativar ações', disable: 'Desativar ações', toggle: 'Alternar',
+    createSkill: 'Criar habilidade', browseSkills: 'Explorar habilidades', import: 'Importar',
+    marketplace: 'Mercado de habilidades', close: 'Fechar', install: 'Instalar', installed: 'Instalado',
+    chooseAccount: 'Escolha uma conta', toContinue: 'para continuar no',
+    wantsAccess: 'quer acessar sua conta', permission: 'Permissão',
+    readManage: 'ver e gerenciar seus dados do', data: '',
+    selectAll: 'Selecionar tudo', cancel: 'Cancelar', allow: 'Permitir',
+    scrollHint: 'Role para baixo para ativar Permitir.', ready: 'Pronto.',
+  },
+};
+
+const LANG = STRINGS[process.env.MOCK_LANG] ? process.env.MOCK_LANG : 'en';
+const S = STRINGS[LANG];
+
+const CONNECTORS = [S.allConnectors, S.search, 'Gmail', 'Google Calendar', 'Google Drive'];
 const ACTIONABLE = CONNECTORS.slice(2);
 const SKILLS = ['Acme /deal-desk', 'Acme /weather-report', 'Acme /travel-plan', 'Acme /expense-audit'];
 
 const page = (title, body, script = '') => `<!doctype html>
-<html><head><meta charset="utf-8"><title>${title}</title><style>
+<html lang="${LANG}"><head><meta charset="utf-8"><title>${title}</title><style>
   body{font-family:system-ui,sans-serif;margin:0;background:#f6f8fc;color:#1f1f1f}
   .wrap{max-width:760px;margin:40px auto;padding:24px;background:#fff;border-radius:12px;box-shadow:0 1px 6px rgba(0,0,0,.12)}
   button{font:inherit;padding:8px 16px;border-radius:20px;border:1px solid #c4c7c5;background:#fff;cursor:pointer}
@@ -42,16 +106,16 @@ const page = (title, body, script = '') => `<!doctype html>
 
 const loginPage = () =>
   page(
-    'Sign in',
-    `<h2>Sign in</h2>
-     <div id="s1"><input type="email" id="identifierId" name="identifier" placeholder="Email"><button class="primary" id="next1">Next</button></div>
-     <div id="s2" style="display:none"><input type="password" name="Passwd" placeholder="Password"><button class="primary" id="next2">Next</button></div>
+    S.signIn,
+    `<h2>${S.signIn}</h2>
+     <div id="s1"><input type="email" id="identifierId" name="identifier" placeholder="${S.email}"><button class="primary" id="next1">${S.next}</button></div>
+     <div id="s2" style="display:none"><input type="password" name="Passwd" placeholder="${S.password}"><button class="primary" id="next2">${S.next}</button></div>
      <p id="err" style="color:#c5221f"></p>`,
     `const $=s=>document.querySelector(s);
-     $('#next1').onclick=()=>{ if(!$('#identifierId').value){$('#err').textContent='Enter an email';return;}
+     $('#next1').onclick=()=>{ if(!$('#identifierId').value){$('#err').textContent=${JSON.stringify(S.enterEmail)};return;}
        $('#s1').style.display='none'; $('#s2').style.display='block'; };
      $('#next2').onclick=()=>{ const p=$('input[name=Passwd]').value;
-       if(p!==${JSON.stringify(PASSWORD)}){$('#err').textContent='Wrong password';return;}
+       if(p!==${JSON.stringify(PASSWORD)}){$('#err').textContent=${JSON.stringify(S.wrongPassword)};return;}
        location.href='/app?u='+encodeURIComponent($('#identifierId').value); };`,
   );
 
@@ -60,43 +124,44 @@ const loginPage = () =>
 const appPage = (user) =>
   page(
     'Mock App',
-    `<div class="overlay" id="ack"><div class="modal"><h3>Terms</h3>
-       <p>This is an experimental feature.</p><button class="primary" id="understand">I understand</button></div></div>
+    `<div class="overlay" id="ack"><div class="modal"><h3>${S.terms}</h3>
+       <p>${S.experimental}</p><button class="primary" id="understand">${S.understand}</button></div></div>
 
      <div class="overlay" id="welcome" style="display:none"><div role="dialog" class="modal">
-       <h3>Welcome</h3><p>Let's set up your workspace.</p><button class="primary" id="start">Get started</button></div></div>
+       <h3>${S.welcome}</h3><p>${S.setup}</p><button class="primary" id="start">${S.getStarted}</button></div></div>
 
      <div id="app" style="display:none">
-       <nav><a href="#chat" id="nav-chat">Chat</a><a href="#skills" id="nav-skills">Skills</a></nav>
+       <nav><a href="#chat" id="nav-chat">${S.chat}</a><a href="#skills" id="nav-skills">${S.skills}</a></nav>
 
        <div id="chat">
-         <h2>Prompt</h2>
-         <textarea rows="4" style="width:100%" placeholder="Ask anything"></textarea>
+         <h2>${S.prompt}</h2>
+         <textarea rows="4" style="width:100%" placeholder="${S.ask}"></textarea>
          <div class="toolbar">
-           <button aria-label="Upload files">+</button>
-           <button>Tools</button>
-           <button id="conn">Connectors</button>
+           <button aria-label="${S.upload}">+</button>
+           <button>${S.tools}</button>
+           <button id="conn">${S.connectors}</button>
            <div class="menu" id="menu" style="display:none"></div>
          </div>
        </div>
 
        <div id="skills" style="display:none">
-         <h2>Skills</h2>
+         <h2>${S.skills}</h2>
          <div id="installed-list"></div>
          <div class="toolbar">
-           <button>Create Skill</button>
-           <button class="primary" id="browse">Browse Skills</button>
-           <button>Import</button>
+           <button>${S.createSkill}</button>
+           <button class="primary" id="browse">${S.browseSkills}</button>
+           <button>${S.import}</button>
          </div>
        </div>
 
        <div class="dialog" id="market" style="display:none">
-         <h3>Skills marketplace</h3>
+         <h3>${S.marketplace}</h3>
          <div id="cards"></div>
-         <button id="close-market">Close</button>
+         <button id="close-market">${S.close}</button>
        </div>
      </div>`,
     `const $=s=>document.querySelector(s);
+     const S=${JSON.stringify(S)};
      const NAMES=${JSON.stringify(CONNECTORS)};
      const SKILLS=${JSON.stringify(SKILLS)};
      const USER=${JSON.stringify(user)};
@@ -108,8 +173,8 @@ const appPage = (user) =>
 
      function render(){
        $('#menu').innerHTML = NAMES.map((n,i)=>{
-         const act = i<2 ? '' : '<button class="enable" data-n="'+n+'">'+(state[n]?'Disable actions':'Enable actions')+'</button>';
-         return '<div class="row"><span>'+n+'</span><div class="actions">'+act+'<input type="checkbox" aria-label="Toggle '+n+'"'+(state[n]?' checked':'')+'></div></div>';
+         const act = i<2 ? '' : '<button class="enable" data-n="'+n+'">'+(state[n]?S.disable:S.enable)+'</button>';
+         return '<div class="row"><span>'+n+'</span><div class="actions">'+act+'<input type="checkbox" aria-label="'+S.toggle+' '+n+'"'+(state[n]?' checked':'')+'></div></div>';
        }).join('');
        document.querySelectorAll('.enable').forEach(b=>b.onclick=()=>{
          const n=b.dataset.n;
@@ -131,7 +196,7 @@ const appPage = (user) =>
        $('#cards').innerHTML = SKILLS.map(n=>
          '<div class="card" role="button"><span>'+n+'</span>'+
          '<ucs-luminous-button><button class="luminous-button" data-n="'+n+'">'+
-         (skillState[n]?'check Installed':'add_2 Install')+'</button></ucs-luminous-button></div>').join('');
+         (skillState[n]?'check '+S.installed:'add_2 '+S.install)+'</button></ucs-luminous-button></div>').join('');
        document.querySelectorAll('.luminous-button').forEach(b=>b.onclick=ev=>{
          ev.stopPropagation();
          skillState[b.dataset.n]=true; renderCards(); renderInstalled();
@@ -151,25 +216,25 @@ const appPage = (user) =>
 
 const oauthPage = (connector, user) =>
   page(
-    'Choose an account',
-    `<h2>Choose an account</h2>
-     <p>to continue to <b>${connector}</b></p>
+    S.chooseAccount,
+    `<h2>${S.chooseAccount}</h2>
+     <p>${S.toContinue} <b>${connector}</b></p>
      <ul id="accounts">
        <li data-identifier="${user}">${user}</li>
        <li data-identifier="someone.else@example.com">someone.else@example.com</li>
      </ul>
 
      <div id="consent" style="display:none">
-       <h3>${connector} wants access to your account</h3>
+       <h3>${connector} ${S.wantsAccess}</h3>
        <div class="scroller" id="sc">
-         ${Array.from({ length: 25 }, (_, i) => `<p>Permission ${i + 1}: read and manage your ${connector} data.</p>`).join('')}
-         <label><input type="checkbox" aria-label="Select all"> Select all</label>
+         ${Array.from({ length: 25 }, (_, i) => `<p>${S.permission} ${i + 1}: ${S.readManage} ${connector} ${S.data}.</p>`).join('')}
+         <label><input type="checkbox" aria-label="${S.selectAll}"> ${S.selectAll}</label>
          <div style="margin-top:20px;text-align:right">
-           <button id="cancel">Cancel</button>
-           <button class="primary" id="allow" disabled>Allow</button>
+           <button id="cancel">${S.cancel}</button>
+           <button class="primary" id="allow" disabled>${S.allow}</button>
          </div>
        </div>
-       <p id="hint" style="color:#8a6d3b">Scroll down to enable Allow.</p>
+       <p id="hint" style="color:#8a6d3b">${S.scrollHint}</p>
      </div>`,
     `const $=s=>document.querySelector(s);
      document.querySelectorAll('#accounts li').forEach(li=>li.onclick=()=>{
@@ -179,7 +244,7 @@ const oauthPage = (connector, user) =>
      document.addEventListener('scroll',()=>{},true);
      $('#sc').addEventListener('scroll',()=>{
        const el=$('#sc');
-       if(el.scrollTop+el.clientHeight>=el.scrollHeight-8){ $('#allow').disabled=false; $('#hint').textContent='Ready.'; }
+       if(el.scrollTop+el.clientHeight>=el.scrollHeight-8){ $('#allow').disabled=false; $('#hint').textContent=${JSON.stringify(S.ready)}; }
      });
      $('#allow').onclick=()=>{ window.opener.postMessage({granted:${JSON.stringify(connector)}},'*'); window.close(); };
      $('#cancel').onclick=()=>window.close();`,
@@ -198,7 +263,7 @@ http
     return res.end(loginPage());
   })
   .listen(PORT, () => {
-    console.log(`Mock app running:  http://localhost:${PORT}`);
+    console.log(`Mock app running:  http://localhost:${PORT}  (language: ${LANG})`);
     console.log(`  email:    ${EMAIL}`);
     console.log(`  password: ${PASSWORD}`);
     console.log(`  actionable connectors: ${ACTIONABLE.join(', ')}`);
