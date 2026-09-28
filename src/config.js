@@ -51,6 +51,9 @@ export const config = {
   // Batch mode (npm run batch)
   usersCsv: process.env.USERS_CSV || 'data/users.csv',
   batchDelay: int(process.env.BATCH_DELAY, 5_000),
+  // How many users a batch run processes at the same time, each in its own
+  // browser. 1 = one after another. `parallel=N` on the command line overrides it.
+  parallel: int(process.env.PARALLEL, 5),
 };
 
 /**

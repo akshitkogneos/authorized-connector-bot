@@ -120,6 +120,8 @@ async function waitForChallenge(page) {
 
   if (!challenge || config.manualStepTimeout <= 0) return;
 
+  // With parallel runs several windows are open; raise the one that needs you.
+  await page.bringToFront().catch(() => {});
   log.warn('─'.repeat(64));
   log.warn('A verification challenge appeared (2FA / device check).');
   log.warn(`Please complete it in the browser window. Waiting up to ${Math.round(config.manualStepTimeout / 1000)}s...`);

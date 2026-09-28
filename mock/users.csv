@@ -1,0 +1,6 @@
+First Name,Last Name,Email,Password,Status
+Ada,Lovelace,ada@example.com,secret123,Active
+Alan,Turing,alan@example.com,secret123,Active
+Grace,Hopper,grace@example.com,secret123,Active
+Katherine,Johnson,katherine@example.com,secret123,Active
+Linus,Torvalds,linus@example.com,secret123,Suspended

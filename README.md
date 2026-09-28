@@ -86,8 +86,18 @@ npm start
 
 | Situation | What runs |
 |-----------|-----------|
-| `data/users.csv` exists with at least one usable row | **Batch mode** — every account in the CSV |
+| `data/users.csv` exists with at least one usable row | **Batch mode** — every account in the CSV, 5 at a time |
 | No CSV, or every row filtered out | **Single user** — `LOGIN_EMAIL` / `LOGIN_PASSWORD` from `.env` |
+
+Change how many users run at once by adding `parallel=N` at the end of the
+command — it works the same for `npm start`, `npm run verify` and
+`npm run batch` (see [Running several users at once](#running-several-users-at-once)):
+
+```bash
+npm start parallel=3
+npm run verify parallel=2
+npm start parallel=1          # one after another
+```
 
 To ignore the CSV and force the `.env` account:
 
@@ -121,7 +131,8 @@ npm run batch
 
 This is the explicit form of what `npm start` already does whenever
 `data/users.csv` has at least one usable row. Override the file with
-`USERS_CSV` or `--csv=path`; every account is run one after another.
+`USERS_CSV` or `--csv=path`. Accounts run 5 at a time by default (see
+[Running several users at once](#running-several-users-at-once)).
 
 ```csv
 First Name,Last Name,Email,Password,Status
@@ -142,6 +153,7 @@ npm run batch -- --csv=data/other.csv   # a different file
 npm run batch -- --skills-only          # or --connectors-only
 npm run batch -- --verify-only          # audit every user, change nothing
 npm run batch -- --all                  # ignore the Status column
+npm run batch parallel=3                # 3 users at a time instead of 5
 ```
 
 > [!IMPORTANT]
@@ -175,6 +187,45 @@ One user's failure never stops the rest. The exit code is non-zero if any user
 failed **or** is not fully set up — so `npm run batch -- --verify-only` works
 as a pass/fail gate in CI or a nightly cron job.
 
+### Running several users at once
+
+Users don't depend on each other, so batch mode works on **5 at a time** by
+default — each in its own browser window. That applies to every command that
+reads the CSV: `npm start`, `npm run verify` and `npm run batch`. To use a
+different number for one run, add `parallel=N` at the end:
+
+```bash
+npm start parallel=3          # 3 at a time
+npm run verify parallel=2     # the audit, 2 at a time
+npm start parallel=1          # one after another
+```
+
+To change the default itself, set `PARALLEL=N` in `.env`.
+
+> [!NOTE]
+> Write it **without dashes**. npm rejects flags it doesn't know before the
+> bot even starts (`npm run verify --parallel=5` fails with
+> `EUNKNOWNCONFIG`), but passes a plain `parallel=5` straight through. The
+> dashed form only works after npm's `--` separator: `npm start -- --parallel=5`.
+
+- **Same isolation as a sequential run.** Every user still gets a brand-new
+  browser process; running in parallel adds no shared state.
+- **One shared queue.** A window that finishes early takes the next user, so
+  a slow or failing account never holds up the rest.
+- **Staggered sign-ins.** No two users start within `BATCH_DELAY` of each
+  other, so Google sees a steady trickle of logins, never a burst.
+- **Readable output.** Log lines interleave but keep their `[<n>-<email>]`
+  prefix, screenshots keep their per-user folders, and `report.csv` /
+  `verification.csv` stay in CSV order. The summary adds the total run time.
+- **2FA still works.** If a challenge appears, that user's window is brought
+  to the front so you can find it among the others.
+
+> [!TIP]
+> Budget roughly 0.5–1 GB of RAM per window. The practical ceiling is usually
+> not the machine but how many simultaneous sign-ins Google tolerates from one
+> IP. If verification prompts start appearing, run with a lower `parallel=N`
+> or raise `BATCH_DELAY`.
+
 ## Verify it works (offline self-test)
 
 The repo ships with a mock app that imitates the real flow — sign-in, the two
@@ -186,6 +237,7 @@ marketplace. Use it to sanity-check the bot without touching the real site:
 npm run mock          # terminal 1 - serves http://localhost:5599
 npm run test:mock     # terminal 2 - all three phases, headless
 npm run test:verify   # terminal 2 - the audit on its own
+npm run test:parallel # terminal 2 - 4 mock accounts (mock/users.csv), 3 at a time
 ```
 
 Expected tail of `npm run test:mock`:
@@ -287,7 +339,8 @@ commented list. The ones you are most likely to touch:
 | `SLOW_MO` | `120` | Delay (ms) between actions |
 | `MANUAL_STEP_TIMEOUT` | `180000` | Pause for you to finish 2FA by hand |
 | `USERS_CSV` | `data/users.csv` | Accounts for batch mode |
-| `BATCH_DELAY` | `5000` | Pause (ms) between users in a batch run |
+| `BATCH_DELAY` | `5000` | Minimum gap (ms) between two users starting their sign-in; with `PARALLEL=1`, the pause between users |
+| `PARALLEL` | `5` | Users a batch run processes at the same time, each in its own browser (add `parallel=N` to a command to override) |
 
 > [!IMPORTANT]
 > Leave `HEADLESS=false`. Google's sign-in and OAuth consent screens routinely
@@ -387,7 +440,7 @@ src/
   i18n.js             every on-screen wording, in en / es / pt / fr / de / it
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
-  logger.js           coloured logs + per-user screenshot folders
+  logger.js           coloured logs + per-user prefixes and screenshot folders (parallel-safe)
   steps/
     login.js          email, password, 2FA pause, sign-in verification
     onboarding.js     "I understand" + "Get started"
@@ -399,6 +452,7 @@ data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
 mock/
   server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt)
+  users.csv           fake accounts for npm run test:parallel
 tools/
   inspect.js          shadow-DOM selector discovery (composer | skills)
   test-csv.js         offline CSV test suite (npm run test:csv)
@@ -417,6 +471,8 @@ tools/
 | `Could not click "Allow"` | The consent screen used a different label — add it to `clickAllow` in [consent.js](./src/steps/consent.js). |
 | Chrome won't launch | Set `BROWSER_CHANNEL=` (empty) and run `npx playwright install chromium`. |
 | Sign-in blocked | Run once with `--keep-open`, log in manually to clear the security prompt, then re-run. |
+| Parallel run: sign-ins start hitting verification / CAPTCHA screens | Too many logins from one IP at once. Re-run with a lower `parallel=N` (or lower `PARALLEL` in `.env`) and/or raise `BATCH_DELAY` — completed users are simply verified again. |
+| `npm error code EUNKNOWNCONFIG … Unknown cli flag: --parallel` | npm rejected the dashed flag before the bot started. Drop the dashes: `npm run verify parallel=5` (or use `npm run verify -- --parallel=5`). |
 | Verification says FAIL but the UI looks fine | Compare the names it lists against `SKIP_CONNECTORS` — a row you deliberately skip but that still shows *Enable actions* counts as pending only if it is **not** on that list. Check `runs/<timestamp>/*/verify-*.png`. |
 | Verification PASSes for an account that is clearly empty | The UI offered nothing to enable/install. Set `EXPECT_CONNECTORS` / `EXPECT_SKILLS` so the names must actually be present. |
 | `Could not get back to the composer` | The audit could not find a Chat/Home nav entry and the reload did not restore the session. Run with `--verify-only` on a fresh login, or raise `TIMEOUT`. |
