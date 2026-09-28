@@ -82,6 +82,9 @@ export function writeCsv(file, headers, rows) {
   fs.writeFileSync(file, `${lines.join('\n')}\n`, 'utf8');
 }
 
+/** True when a user's Status column is empty or "Active" - the rows a run processes by default. */
+export const isActive = (user) => !user.status || /^active$/i.test(user.status);
+
 /**
  * Turns CSV rows into users. Accepts a few common header spellings so the
  * file can come straight out of a console export.
@@ -96,5 +99,5 @@ export function toUsers(records, { onlyActive = true } = {}) {
       line: i + 2, // +1 for the header, +1 for 1-based numbering
     }))
     .filter((u) => u.email && u.password)
-    .filter((u) => !onlyActive || !u.status || /^active$/i.test(u.status));
+    .filter((u) => !onlyActive || isActive(u));
 }

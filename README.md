@@ -226,6 +226,50 @@ To change the default itself, set `PARALLEL=N` in `.env`.
 > IP. If verification prompts start appearing, run with a lower `parallel=N`
 > or raise `BATCH_DELAY`.
 
+## Web UI
+
+Prefer a console to the terminal? Start the web UI:
+
+```bash
+npm run ui
+```
+
+It opens <http://127.0.0.1:5700/> in your browser. The page is styled like the
+Google Cloud console and built with Google's
+[Material Web](https://github.com/material-components/material-web)
+components. It only listens on this machine. The UI uses the same `.env` and
+`data/users.csv` as the commands above, and runs users exactly the same way:
+every user gets its own browser window, and you complete 2FA in that window.
+
+| Page | What it does |
+|------|--------------|
+| **Run** | Pick the mode (Full setup, Connectors only, Skills only, Verify only), how many users run at a time, and whether to include inactive CSV rows. Then **Run all users**, tick some users and **Run selected**, or **Retry failed**. While a run is going you get a progress bar, per-user status, the live activity log, and a details panel per user (steps, screenshots, verification results). |
+| **Run history** | Every run under `runs/`, started from the UI or the command line, including a command-line run that is still going. Open a run to see its users, log and screenshots, or download `report.csv`, `verification.csv` and `run.log`. |
+| **Configuration** | The settings the UI was started with (read-only; edit `.env` and restart to change them). |
+
+- **One run at a time.** Settings are locked while it runs.
+- **Stop run** closes the windows still working and marks users that never
+  started as *not run*. A partial report is still written.
+- **Ctrl+C** in the terminal stops the active run the same way, then quits.
+  Press it again to quit immediately.
+- Every run folder also gets a `run.log` (the full log) and a `run.json`
+  (settings plus each user's progress). This includes runs from `npm start` /
+  `npm run verify` / `npm run batch`.
+- Optional `.env` settings: `UI_PORT` pins the port (by default 5700, or the
+  next free one). `UI_OPEN=false` stops it from opening a browser tab.
+
+> [!NOTE]
+> The page loads its fonts and icons from Google Fonts, so it needs internet
+> access. Without it the icons show up as words like `play_arrow`.
+
+To try the UI without touching the real site, run it against the mock app
+(4 fake accounts, headless):
+
+```bash
+npm run mock      # terminal 1
+npm run test:ui   # terminal 2 - the UI with mock/users.csv
+```
+
 ## Verify it works (offline self-test)
 
 The repo ships with a mock app that imitates the real flow — sign-in, the two
@@ -238,6 +282,7 @@ npm run mock          # terminal 1 - serves http://localhost:5599
 npm run test:mock     # terminal 2 - all three phases, headless
 npm run test:verify   # terminal 2 - the audit on its own
 npm run test:parallel # terminal 2 - 4 mock accounts (mock/users.csv), 3 at a time
+npm run test:ui       # terminal 2 - the web UI with the mock accounts (see Web UI)
 ```
 
 Expected tail of `npm run test:mock`:
@@ -448,6 +493,11 @@ src/
     consent.js        account chooser -> scroll -> Allow
     skills.js         Skills nav -> marketplace -> install everything
     verify.js         read-only audit: everything enabled? everything installed?
+  ui/
+    server.js         web UI (npm run ui): serves the page, a JSON API and live updates
+    runner.js         starts and stops one batch run for the UI
+    history.js        reads past runs back from runs/
+    public/           the page itself: Lit + Material Web components, GCP-style CSS, logo
 data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
 mock/

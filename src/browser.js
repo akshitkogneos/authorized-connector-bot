@@ -11,8 +11,12 @@ import { log } from './logger.js';
  *  - USE_INCOGNITO_WINDOW=false -> Playwright's default context, which is
  *    already isolated (no cookies, no cache, no extensions) and is the more
  *    reliable option if the --incognito flag ever misbehaves.
+ *
+ * `handleSignals: false` stops Playwright from closing the browser and
+ * exiting on Ctrl+C / SIGTERM / SIGHUP. The web UI uses it: it stops the run
+ * itself on Ctrl+C, so the partial report still gets written.
  */
-export async function launchBrowser() {
+export async function launchBrowser({ handleSignals = true } = {}) {
   const args = [
     '--start-maximized',
     '--disable-blink-features=AutomationControlled',
@@ -26,6 +30,9 @@ export async function launchBrowser() {
     headless: config.headless,
     slowMo: config.slowMo,
     args,
+    handleSIGINT: handleSignals,
+    handleSIGTERM: handleSignals,
+    handleSIGHUP: handleSignals,
   };
   if (config.channel) launchOptions.channel = config.channel;
 

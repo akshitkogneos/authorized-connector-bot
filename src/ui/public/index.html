@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Connectors bot · Explore Genie</title>
+    <link rel="icon" type="image/png" href="/favicon.png" />
+
+    <!-- Google Sans, Roboto and Material Symbols, as in the Cloud console -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Roboto:wght@400;500;700&family=Roboto+Mono:wght@400;500&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=block"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+
+    <!-- Material Web and Lit, served by the UI server straight from node_modules -->
+    <script type="importmap">
+      {
+        "imports": {
+          "@material/web/": "/vendor/@material/web/",
+          "lit": "/vendor/lit/index.js",
+          "lit/": "/vendor/lit/",
+          "lit-html": "/vendor/lit-html/lit-html.js",
+          "lit-html/": "/vendor/lit-html/",
+          "lit-element/": "/vendor/lit-element/",
+          "@lit/reactive-element": "/vendor/@lit/reactive-element/reactive-element.js",
+          "@lit/reactive-element/": "/vendor/@lit/reactive-element/",
+          "tslib": "/vendor/tslib/tslib.es6.mjs"
+        }
+      }
+    </script>
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <eg-app></eg-app>
+    <div class="boot" role="status">
+      <div class="boot-spinner" aria-hidden="true"></div>
+      <div>Loading the console…</div>
+      <div class="boot-hint">
+        Taking a while? Make sure <code>npm run ui</code> is still running, then reload this page.
+      </div>
+    </div>
+    <noscript>This console needs JavaScript.</noscript>
+  </body>
+</html>
