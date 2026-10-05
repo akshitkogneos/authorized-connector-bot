@@ -307,7 +307,8 @@ eg-app {
   outline-color: #fff;
 }
 
-/* Like the console's project picker: shows the users file in use. */
+/* Like the console's project picker: shows the users file in use and opens
+   the users-file dialog. */
 .project-picker {
   position: relative;
   flex: none;
@@ -315,15 +316,28 @@ eg-app {
   align-items: center;
   gap: 6px;
   height: 32px;
+  max-width: 360px;
   margin-right: 16px;
   padding: 0 4px 0 10px;
+  border: 0;
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.14);
   color: #fff;
   font: 500 14px/20px var(--font-brand);
   white-space: nowrap;
+  cursor: pointer;
   --md-ripple-hover-color: #fff;
   --md-ripple-pressed-color: #fff;
+}
+
+.project-picker:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.project-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .project-picker:hover {
@@ -1513,6 +1527,190 @@ md-dialog.help-dialog {
 
 md-dialog.confirm-dialog {
   max-width: min(520px, calc(100% - 48px));
+}
+
+/* Users-file picker, like the console's "Select a project" dialog. */
+md-dialog.csv-dialog {
+  width: min(780px, calc(100% - 48px));
+  max-width: none;
+}
+
+.csv-headline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.csv-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dropzone {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+  border: 1px dashed var(--grey-500);
+  border-radius: 8px;
+  background: var(--grey-50);
+  transition:
+    background-color 0.1s,
+    border-color 0.1s;
+}
+
+.dropzone > md-icon {
+  flex: none;
+  color: var(--blue);
+  --md-icon-size: 36px;
+}
+
+.dropzone > md-circular-progress {
+  flex: none;
+  --md-circular-progress-size: 36px;
+}
+
+.dropzone.dragging {
+  border: 2px solid var(--blue);
+  padding: 17px 19px;
+  background: var(--blue-bg);
+}
+
+.dropzone-title {
+  color: var(--grey-900);
+  font: 500 14px/20px var(--font-brand);
+}
+
+.dropzone-sub {
+  margin-top: 2px;
+  color: var(--grey-700);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.link-button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--blue);
+  font: inherit;
+  cursor: pointer;
+}
+
+.link-button:hover {
+  text-decoration: underline;
+}
+
+.csv-table {
+  border: 1px solid var(--grey-300);
+  border-radius: 8px;
+}
+
+.csv-table table.data th:first-child,
+.csv-table table.data td:first-child {
+  padding-left: 8px;
+}
+
+.csv-table .col-radio {
+  width: 48px;
+}
+
+.csv-table .col-actions {
+  width: 56px;
+  padding: 0 8px;
+  text-align: right;
+}
+
+.csv-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--grey-900);
+  font-weight: 500;
+}
+
+.csv-name md-icon {
+  flex: none;
+  color: var(--grey-700);
+  --md-icon-size: 20px;
+}
+
+.csv-path {
+  margin: 2px 0 0 28px;
+  font-size: 12px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
+}
+
+.csv-loading {
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.csv-current {
+  margin-right: auto;
+  padding-left: 8px;
+  font-size: 13px;
+}
+
+.confirm-inline {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.confirm-inline > md-icon {
+  flex: none;
+  color: var(--red);
+  --md-icon-size: 20px;
+}
+
+.confirm-text {
+  flex: 1 1 260px;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+tr.confirm-row td {
+  background: var(--red-bg);
+}
+
+/* A small grey label next to a name: "Default", "Uploaded", "In use". */
+.chip-label {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 8px;
+  border-radius: 10px;
+  background: var(--grey-100);
+  color: var(--grey-800);
+  font: 500 11px/16px var(--font-plain);
+  letter-spacing: 0.2px;
+  white-space: nowrap;
+}
+
+.chip-label.in-use {
+  background: #d2e3fc;
+  color: var(--blue-darker);
+}
+
+eg-csv-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+eg-csv-actions md-circular-progress {
+  --md-circular-progress-size: 18px;
 }
 
 md-dialog.shot-dialog {

@@ -73,6 +73,13 @@ export class RunView extends LightElement {
       this.mode = this.defaults.mode;
       this.parallel = this.defaults.parallel;
     }
+    // Another users file: the ticked users and the open panel belonged to the old one.
+    const before = changed.get('csv');
+    if (changed.has('csv') && before && before.file !== this.csv?.file) {
+      this.selected = new Set();
+      this.openKey = null;
+      this.includeInactive = false;
+    }
     // Tick once a second while a run is live, for elapsed times.
     if (isLive(this.run) && !this.timer) {
       this.timer = setInterval(() => (this.now = Date.now()), 1000);
@@ -88,9 +95,15 @@ export class RunView extends LightElement {
     super.disconnectedCallback();
   }
 
+  /** True when the latest run used the users file shown now (switching files starts a clean table). */
+  runMatchesCsv() {
+    return Boolean(this.run) && (!this.run.csv || !this.csv || this.run.csv === this.csv.file || isLive(this.run));
+  }
+
   /** Every CSV user (inactive ones only when included) with their result in the latest run. */
   buildRows() {
-    const inRun = new Map((this.run?.users ?? []).map((u) => [u.email.toLowerCase(), u]));
+    const run = this.runMatchesCsv() ? this.run : null;
+    const inRun = new Map((run?.users ?? []).map((u) => [u.email.toLowerCase(), u]));
     const rows = [];
     const seen = new Set();
     for (const u of this.csv?.users ?? []) {
@@ -104,7 +117,7 @@ export class RunView extends LightElement {
         name: u.name,
         csvStatus: u.status,
         active: u.active,
-        user: user ?? { status: this.run ? 'outside' : 'idle', shots: [], findings: [] },
+        user: user ?? { status: run ? 'outside' : 'idle', shots: [], findings: [] },
       });
     }
     // Users of the latest run that are no longer in the CSV.
@@ -119,7 +132,7 @@ export class RunView extends LightElement {
     const live_ = isLive(run);
     const rows = this.buildRows();
     const chosen = rows.filter((r) => this.selected.has(r.key)).map((r) => r.email);
-    const retry = run && !live_ ? run.users.filter(needsRetry).map((u) => u.email) : [];
+    const retry = run && !live_ && this.runMatchesCsv() ? run.users.filter(needsRetry).map((u) => u.email) : [];
     const runnable = (this.csv?.users ?? []).filter((u) => u.active || this.includeInactive).length;
     const openRow = rows.find((r) => r.key === this.openKey) ?? null;
     const openIndex = openRow?.user.index;
@@ -159,6 +172,9 @@ export class RunView extends LightElement {
           <div class="card-header">
             <h2>Users</h2>
             <span class="card-sub">${this.csv?.file ?? ''}</span>
+            ${this.csv && !this.csv.isDefault ? html`<span class="chip-label">Uploaded</span>` : nothing}
+            <span class="toolbar-spacer"></span>
+            <eg-csv-actions ?locked=${live_}></eg-csv-actions>
           </div>
           <eg-users-table
             .rows=${rows}

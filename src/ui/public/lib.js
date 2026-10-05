@@ -35,6 +35,26 @@ export const getJson = (url) => request(url, { headers: { Accept: 'application/j
 export const postJson = (url, data = {}) =>
   request(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
 
+const MAX_CSV_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Sends a users CSV picked or dropped in the browser. The server checks it
+ * (Email and Password columns, at least one usable row), saves it under
+ * data/uploads/ and switches to it. Resolves with { file, reused, csv }.
+ */
+export async function uploadCsvFile(file) {
+  if (!file) throw new Error('No file selected.');
+  if (!/\.csv$/i.test(file.name) && !/csv/i.test(file.type)) throw new Error(`${file.name} is not a .csv file.`);
+  if (file.size > MAX_CSV_BYTES) throw new Error(`${file.name} is larger than 5 MB.`);
+  return postJson('/api/csv', { name: file.name, content: await file.text() });
+}
+
+/** Snackbar text after switching users files. */
+export const csvSwitchedText = ({ file, reused }) =>
+  `${reused ? 'Using the earlier upload of' : 'Now using'} ${file.name} · ${plural(file.users, 'user')}${
+    file.active === file.users ? '' : ` (${file.active} active)`
+  }`;
+
 // ---------------------------------------------------------------------------
 // Formatting
 // ---------------------------------------------------------------------------

@@ -8,3 +8,4 @@ scratch/
 # Holds plaintext passwords - same rules as .env.
 data/*.csv
 !data/users.example.csv
+data/uploads/

@@ -57,7 +57,12 @@ export function parseCsv(text) {
 
 /** Reads a CSV into objects keyed by its header row (keys are lower-cased). */
 export function readCsvObjects(file) {
-  const rows = parseCsv(fs.readFileSync(file, 'utf8'));
+  return parseCsvObjects(fs.readFileSync(file, 'utf8'));
+}
+
+/** Parses CSV text into objects keyed by its header row (keys are lower-cased). */
+export function parseCsvObjects(text) {
+  const rows = parseCsv(text);
   if (!rows.length) return [];
 
   const headers = rows[0].map((h) => h.trim().toLowerCase());

@@ -9,12 +9,14 @@ export class ConfigView extends LightElement {
   static properties = {
     settings: { attribute: false },
     csv: { attribute: false },
+    locked: { type: Boolean },
   };
 
   constructor() {
     super();
     this.settings = [];
     this.csv = null;
+    this.locked = false;
   }
 
   render() {
@@ -39,9 +41,17 @@ export class ConfigView extends LightElement {
         </div>
 
         <section class="card">
-          <div class="card-header"><h2>Users file</h2></div>
+          <div class="card-header">
+            <h2>Users file</h2>
+            <span class="toolbar-spacer"></span>
+            <eg-csv-actions ?locked=${this.locked}></eg-csv-actions>
+          </div>
           <dl class="facts overview">
             <div class="fact"><dt>File</dt><dd><code>${this.csv?.file ?? '—'}</code></dd></div>
+            <div class="fact">
+              <dt>Source</dt>
+              <dd>${!this.csv ? '—' : this.csv.isDefault ? html`Default (<code>USERS_CSV</code>)` : 'Uploaded in the web UI'}</dd>
+            </div>
             <div class="fact"><dt>Users</dt><dd>${plural(users.length, 'row')}</dd></div>
             <div class="fact"><dt>Active</dt><dd>${active}</dd></div>
             <div class="fact"><dt>Other status</dt><dd>${users.length - active}</dd></div>

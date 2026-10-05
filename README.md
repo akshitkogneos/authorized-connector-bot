@@ -262,6 +262,30 @@ every user gets its own browser window, and you complete 2FA in that window.
 > The page loads its fonts and icons from Google Fonts, so it needs internet
 > access. Without it the icons show up as words like `play_arrow`.
 
+### Uploading a users CSV
+
+Click the file name in the top bar (like the console's project picker), or
+**Upload CSV** above the users table. You can pick a file or drag it onto the
+dialog.
+
+- The file needs **Email** and **Password** columns. **First Name**, **Last Name**
+  and **Status** are optional (the same format as `data/users.csv`).
+- A file with a missing column or no usable rows is rejected, with the reason
+  shown. An Excel workbook gets a hint to save it as CSV first.
+- A good file is saved to `data/uploads/<time>-<name>.csv` and the UI switches
+  to it. `data/users.csv` itself is never changed. `data/uploads/` is
+  gitignored, because these files hold passwords too.
+- Uploading the same content again reuses the earlier copy.
+- The dialog lists every upload, so you can switch back to `data/users.csv` or to
+  an earlier file, or delete uploads you no longer need.
+- The choice lasts until the UI restarts. After a restart the UI uses
+  `data/users.csv` again.
+- The command line always uses `data/users.csv`. To run an upload from the
+  terminal, pass it explicitly: `npm start csv=data/uploads/<file>.csv`.
+- You can't change the users file while a run is in progress.
+
+### Trying the UI safely
+
 To try the UI without touching the real site, run it against the mock app
 (4 fake accounts, headless):
 
@@ -497,9 +521,11 @@ src/
     server.js         web UI (npm run ui): serves the page, a JSON API and live updates
     runner.js         starts and stops one batch run for the UI
     history.js        reads past runs back from runs/
+    csv-files.js      users files for the UI: validates, saves and switches uploaded CSVs
     public/           the page itself: Lit + Material Web components, GCP-style CSS, logo
 data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
+  uploads/            CSVs uploaded in the web UI (gitignored - holds passwords)
 mock/
   server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt)
   users.csv           fake accounts for npm run test:parallel

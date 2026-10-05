@@ -9,6 +9,7 @@ import '@material/web/icon/icon.js';
 import '@material/web/iconbutton/icon-button.js';
 import '@material/web/progress/circular-progress.js';
 import '@material/web/progress/linear-progress.js';
+import '@material/web/radio/radio.js';
 import '@material/web/ripple/ripple.js';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
@@ -19,6 +20,7 @@ import '@material/web/tabs/tabs.js';
 import { html, nothing } from 'lit';
 import { LightElement, getJson, plural, tally } from './lib.js';
 import './config-view.js';
+import './csv-dialog.js';
 import './history-view.js';
 import './run-view.js';
 
@@ -52,6 +54,7 @@ class App extends LightElement {
     search: { state: true },
     snack: { state: true },
     helpOpen: { state: true },
+    csvOpen: { state: true },
   };
 
   constructor() {
@@ -67,6 +70,7 @@ class App extends LightElement {
     this.search = '';
     this.snack = null;
     this.helpOpen = false;
+    this.csvOpen = false;
   }
 
   connectedCallback() {
@@ -76,6 +80,18 @@ class App extends LightElement {
       window.scrollTo(0, 0);
     });
     this.addEventListener('toast', (e) => this.showToast(e.detail.text, e.detail.action));
+    this.addEventListener('open-csv-dialog', () => (this.csvOpen = true));
+    this.addEventListener('close-csv-dialog', () => (this.csvOpen = false));
+    this.addEventListener('csv-changed', (e) => {
+      this.loadInfo();
+      this.showToast(e.detail.text);
+    });
+    // A file dropped outside the upload area would otherwise replace the page.
+    for (const type of ['dragover', 'drop']) {
+      window.addEventListener(type, (e) => {
+        if ([...(e.dataTransfer?.types ?? [])].includes('Files')) e.preventDefault();
+      });
+    }
     this.loadInfo();
     this.connect();
   }
@@ -108,6 +124,7 @@ class App extends LightElement {
       this.setRun(run);
     });
     on('run', (run) => this.setRun(run));
+    on('csv', () => this.loadInfo()); // the users file was switched, maybe from another tab
     on('user', (user) => this.patchUser(user.index, () => user));
     on('shot', ({ user, shot }) => this.patchUser(user, (u) => ({ ...u, shots: [...u.shots, shot] })));
     on('log', (entry) => {
@@ -179,13 +196,19 @@ class App extends LightElement {
         <a class="brand" href="#/run" aria-label="Explore Genie connectors bot - home">
           <img src="/logo.png" alt="Explore Genie" width="178" height="24" />
         </a>
-        <a class="project-picker" href="#/config" title="Users file - see Configuration">
+        <button
+          type="button"
+          class="project-picker"
+          title="Users file: ${csv?.file ?? '—'} - click to upload or switch"
+          aria-haspopup="dialog"
+          @click=${() => (this.csvOpen = true)}
+        >
           <md-icon>group</md-icon>
-          <span class="project-name">${csv?.file ?? 'Users file'}</span>
+          <span class="project-name">${csv?.name ?? 'Users file'}</span>
           ${csv ? html`<span class="project-count">${plural(active, 'user')}</span>` : nothing}
           <md-icon>arrow_drop_down</md-icon>
           <md-ripple></md-ripple>
-        </a>
+        </button>
         <label class="search">
           <md-icon>search</md-icon>
           <input
@@ -240,6 +263,7 @@ class App extends LightElement {
       </main>
 
       ${this.renderHelp()}
+      <eg-csv-dialog .open=${this.csvOpen} ?locked=${Boolean(live)}></eg-csv-dialog>
       <div class="snackbar ${this.snack ? 'show' : ''}" role="status" aria-live="polite">
         <span class="snackbar-text">${this.snack?.text ?? ''}</span>
         ${this.snack?.action
@@ -259,7 +283,7 @@ class App extends LightElement {
       case 'history':
         return html`<eg-history-view .runId=${this.route.id} .activeRunId=${liveId} .search=${this.search}></eg-history-view>`;
       case 'config':
-        return html`<eg-config-view .settings=${info?.settings ?? []} .csv=${info?.csv ?? null}></eg-config-view>`;
+        return html`<eg-config-view .settings=${info?.settings ?? []} .csv=${info?.csv ?? null} ?locked=${Boolean(liveId)}></eg-config-view>`;
       default:
         return html`<eg-run-view
           .csv=${info?.csv ?? null}
@@ -283,6 +307,11 @@ class App extends LightElement {
           sign in, authorize connectors, install skills, then verify the result.
         </p>
         <ul>
+          <li>
+            <strong>Users file</strong> - click the file name in the top bar (or <strong>Upload CSV</strong> above the users table) to
+            upload another CSV or switch back to <code>${this.info?.csv.defaultFile ?? 'data/users.csv'}</code>. Uploads are kept in
+            <code>data/uploads/</code>.
+          </li>
           <li><strong>Mode</strong> - Full setup does everything; Connectors only and Skills only do one phase plus its check; Verify only is a read-only check.</li>
           <li><strong>Users at a time</strong> - how many browser windows work in parallel. Sign-ins start a few seconds apart.</li>
           <li><strong>2FA or a security check?</strong> Complete it in that user's browser window - the bot waits for you.</li>

@@ -8,6 +8,7 @@ import { config } from '../config.js';
 import { CSV_PATH, PARALLEL } from '../batch.js';
 import { isActive, readCsvObjects, toUsers } from '../csv.js';
 import { log } from '../logger.js';
+import { MAX_UPLOAD_BYTES, createCsvStore } from './csv-files.js';
 import { isRunId, listRuns, loadRun } from './history.js';
 import { HttpError, MODES, createRunner, modePhases } from './runner.js';
 
@@ -23,6 +24,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(HERE, 'public');
 const NODE_MODULES = path.resolve(HERE, '../../node_modules');
 const RUNS_DIR = path.join(process.cwd(), 'runs'); // where logger.js writes runs
+const UPLOAD_DIR = path.join(process.cwd(), 'data', 'uploads'); // CSVs uploaded from the page (git-ignored)
 
 const HOST = '127.0.0.1';
 const FIXED_PORT = Number.parseInt(process.env.UI_PORT, 10);
@@ -58,6 +60,9 @@ function broadcast(type, data) {
 
 const runner = createRunner({ runsDir: RUNS_DIR, broadcast });
 
+// The users file the UI shows and runs: CSV_PATH until one is uploaded or picked.
+const csvFiles = createCsvStore({ defaultPath: CSV_PATH, uploadDir: UPLOAD_DIR });
+
 // Comments keep idle connections from being dropped by the browser.
 setInterval(() => {
   for (const res of clients) res.write(': keep-alive\n\n');
@@ -91,24 +96,65 @@ function state() {
   };
 }
 
-/** All CSV rows, inactive ones flagged. Passwords never leave the server. */
+/** All rows of the users file in use, inactive ones flagged. Passwords never leave the server. */
 function readUsers() {
-  const file = path.relative(process.cwd(), CSV_PATH) || CSV_PATH;
-  if (!fs.existsSync(CSV_PATH)) {
-    return { file, users: [], error: `${file} was not found. Set USERS_CSV in .env or start the UI with csv=path/to/users.csv.` };
+  const csvPath = csvFiles.path();
+  const file = path.relative(process.cwd(), csvPath) || csvPath;
+  const base = { file, name: csvFiles.name(), isDefault: csvFiles.isDefault(), defaultFile: csvFiles.defaultFile() };
+  if (!fs.existsSync(csvPath)) {
+    return {
+      ...base,
+      users: [],
+      error: `${file} was not found. Upload a CSV, set USERS_CSV in .env or start the UI with csv=path/to/users.csv.`,
+    };
   }
   try {
-    const users = toUsers(readCsvObjects(CSV_PATH), { onlyActive: false }).map((u) => ({
+    const users = toUsers(readCsvObjects(csvPath), { onlyActive: false }).map((u) => ({
       email: u.email,
       name: u.name,
       status: u.status,
       line: u.line,
       active: isActive(u),
     }));
-    return { file, users, error: users.length ? null : `${file} has no usable rows (it needs Email and Password columns).` };
+    return { ...base, users, error: users.length ? null : `${file} has no usable rows (it needs Email and Password columns).` };
   } catch (err) {
-    return { file, users: [], error: `Could not read ${file}: ${err.message}` };
+    return { ...base, users: [], error: `Could not read ${file}: ${err.message}` };
   }
+}
+
+/** Changing the users file mid-run would make the table disagree with the run. */
+function assertIdle() {
+  if (runner.isActive()) throw new HttpError(409, 'Wait until the current run has finished before changing the users file.');
+}
+
+/** Replies to a users-file change and tells every open tab to reload. */
+function csvChanged(res, extra = {}) {
+  const csv = readUsers();
+  broadcast('csv', { file: csv.file });
+  sendJson(res, 200, { ...extra, csv });
+}
+
+async function uploadCsv(req, res) {
+  assertIdle();
+  const body = await readJson(req, MAX_UPLOAD_BYTES * 2); // JSON escaping can double the size
+  const { file, reused } = csvFiles.save({ name: body.name, content: body.content });
+  log.info(`web UI: ${reused ? 'switched to the earlier upload of' : 'uploaded'} ${file.name} (${file.users} users) -> ${file.file}`);
+  csvChanged(res, { file, reused });
+}
+
+async function selectCsv(req, res) {
+  assertIdle();
+  const file = csvFiles.select((await readJson(req)).id);
+  log.info(`web UI: now using ${file.file}`);
+  csvChanged(res, { file });
+}
+
+async function deleteCsv(req, res) {
+  assertIdle();
+  const { id } = await readJson(req);
+  const now = csvFiles.remove(id);
+  log.info(`web UI: deleted the upload ${id} - using ${now.file}`);
+  csvChanged(res, { file: now });
 }
 
 /** The effective settings from .env, for the read-only Configuration page. */
@@ -117,7 +163,7 @@ function settings() {
   const list = (items) => (items.length ? items.join(', ') : '');
   return [
     ['Target', 'TARGET_URL', config.targetUrl, 'The web app every user signs in to.'],
-    ['Users', 'USERS_CSV', path.relative(process.cwd(), CSV_PATH), 'Accounts to process. Needs Email and Password columns; only rows with Status "Active" run unless inactive users are included.'],
+    ['Users', 'USERS_CSV', path.relative(process.cwd(), CSV_PATH), 'Default accounts file. Needs Email and Password columns; only rows with Status "Active" run unless inactive users are included. The UI can switch to an uploaded CSV instead.'],
     ['Users', 'PARALLEL', PARALLEL, 'How many users run at the same time by default, each in its own browser.'],
     ['Users', 'BATCH_DELAY', ms(config.batchDelay), 'Minimum gap between two sign-ins. With one user at a time: the pause between users.'],
     ['Phases', 'DO_CONNECTORS', config.doConnectors, 'Authorize connectors during a full run.'],
@@ -154,6 +200,7 @@ async function startRun(req, res) {
     parallel: Number.isFinite(parallel) ? Math.min(Math.max(parallel, 1), 50) : PARALLEL,
     includeInactive: body.includeInactive === true,
     emails,
+    csvPath: csvFiles.path(),
   });
   sendJson(res, 202, { id: run.id });
 }
@@ -200,6 +247,10 @@ async function route(req, res) {
   }
   if (is('POST', '/api/runs')) return startRun(req, res);
   if (is('POST', '/api/runs/stop')) return sendJson(res, 202, { status: runner.stop()?.status ?? null });
+  if (is('GET', '/api/csv')) return sendJson(res, 200, { files: csvFiles.list() });
+  if (is('POST', '/api/csv')) return uploadCsv(req, res);
+  if (is('POST', '/api/csv/select')) return selectCsv(req, res);
+  if (is('POST', '/api/csv/delete')) return deleteCsv(req, res);
   if (pathname.startsWith('/api/')) throw new HttpError(404, 'Not found.');
 
   if (req.method !== 'GET' && req.method !== 'HEAD') throw new HttpError(405, 'Method not allowed.');
@@ -263,12 +314,12 @@ function sendJson(res, status, data) {
   res.end(body);
 }
 
-async function readJson(req) {
+async function readJson(req, limit = 64 * 1024) {
   let size = 0;
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > 64 * 1024) throw new HttpError(413, 'Request too large.');
+    if (size > limit) throw new HttpError(413, 'Request too large.');
     chunks.push(chunk);
   }
   try {
