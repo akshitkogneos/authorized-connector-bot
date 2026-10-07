@@ -354,7 +354,7 @@ Gemini Enterprise and Google's sign-in / consent screens show up in the
 *Permitir* instead of *Enable actions* and *Allow*. The bot recognises every
 button in:
 
-**English · Spanish · Portuguese · French · German · Italian**
+**English · Spanish · Portuguese · French · German · Italian · Korean**
 
 Nothing to configure. Mixed-language CSVs work too, because each button is
 matched against all languages at once.
@@ -364,16 +364,23 @@ case and accents, and uses whole words. That last part matters:
 *Deshabilitar acciones* (disable) contains *habilitar acciones* (enable), and
 *Desinstalar* contains *Instalar*.
 
+Korean uses the same rules, with Hangul counted as letters, so *설치* (Install)
+is never found inside *설치됨* (Installed). Accent-stripping recomposes Hangul
+afterwards (NFC). Without that step a Korean pattern never matches, because
+Unicode decomposition splits every syllable into separate jamo.
+
 > [!NOTE]
-> The non-English Gemini Enterprise wordings have only been tested against the
-> mock app, not a real translated account. If a run stops on a button, look at
-> the screenshot in `runs/<timestamp>/`, then add the exact wording to the
+> Korean has been run end to end against a real Korean account: sign-in,
+> onboarding, the Sources menu, the Korean OAuth consent screen and the skills
+> marketplace. The other non-English Gemini Enterprise wordings have only been
+> tested against the mock app. If a run stops on a button, look at the
+> screenshot in `runs/<timestamp>/`, then add the exact wording to the
 > matching list in `src/i18n.js`.
 
-Test it offline. The mock app can be served in Spanish or Portuguese:
+Test it offline. The mock app can be served in Spanish, Portuguese or Korean:
 
 ```bash
-npm run mock:es     # terminal 1 (or mock:pt)
+npm run mock:es     # terminal 1 (or mock:pt / mock:ko)
 npm run test:mock   # terminal 2
 npm run test:i18n   # no server needed
 ```
@@ -506,7 +513,7 @@ src/
   flow.js             the per-user journey, shared by both entry points
   csv.js              dependency-free CSV read/write
   config.js           .env parsing, validation, CLI phase resolution
-  i18n.js             every on-screen wording, in en / es / pt / fr / de / it
+  i18n.js             every on-screen wording, in en / es / pt / fr / de / it / ko
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
   logger.js           coloured logs + per-user prefixes and screenshot folders (parallel-safe)
@@ -527,7 +534,7 @@ data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
   uploads/            CSVs uploaded in the web UI (gitignored - holds passwords)
 mock/
-  server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt)
+  server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt | mock:ko)
   users.csv           fake accounts for npm run test:parallel
 tools/
   inspect.js          shadow-DOM selector discovery (composer | skills)

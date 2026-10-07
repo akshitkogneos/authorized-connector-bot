@@ -30,7 +30,7 @@ const check = async (name, fn) => {
 
 const loose = (key) => re(key, { exact: false });
 
-await check('"disable" wording is never read as "enable" (es/pt/fr/de/it)', () => {
+await check('"disable" wording is never read as "enable" (es/pt/fr/de/it/ko)', () => {
   for (const w of words('disableActions')) {
     assert.ok(!loose('enableActions').test(w), `"${w}" matched enableActions`);
     assert.ok(loose('disableActions').test(w), `"${w}" did not match disableActions`);
@@ -71,6 +71,33 @@ await check('strip() leaves just the connector name', () => {
   assert.equal(s('GmailDeshabilitar acciones'), 'Gmail');
   assert.equal(s('Google CalendarDesativar ações'), 'Google Calendar');
   assert.equal(s('GmailEnable actions'), 'Gmail');
+  // Korean rows, as read from a live account ("Calendar 작업 사용 설정").
+  assert.equal(s('Calendar 작업 사용 설정'), 'Calendar');
+  assert.equal(s('Drive작업 사용 설정'), 'Drive');
+  assert.equal(s('Gmail 작업 사용 중지'), 'Gmail');
+});
+
+/* ------------------------------ Korean ------------------------------ */
+
+await check('Korean wordings stay precomposed (fold() must not leave jamo behind)', () => {
+  // NFD turns "설치" into 6 jamo; a regex built from those never matches a page.
+  assert.ok(re('install').test('설치'), 're("install") does not match "설치"');
+  assert.ok(re('getStarted').test('시작하기'));
+  assert.ok(re('sources').test('소스'));
+  assert.ok(re('skills').test('스킬'));
+  assert.ok(re('home').test('새 채팅'));
+  assert.ok(loose('enableActions').test('작업 사용 설정'));
+});
+
+await check('Korean whole-word traps: "설치" is not "설치됨", enable is not disable', () => {
+  assert.ok(!re('install').test('설치됨'));
+  assert.ok(!re('install').test('설치 제거'));
+  assert.ok(re('installed').test('설치됨'));
+  assert.ok(!loose('enableActions').test('작업 사용 중지'));
+  assert.ok(!loose('enableActions').test('작업 비활성화'));
+  assert.ok(loose('disableActions').test('작업 사용 중지'));
+  // The "Enable all connectors" switch row must never look like a connector button.
+  assert.ok(!loose('enableActions').test('모든 커넥터 사용 설정'));
 });
 
 /* --------------------- 2. every wording, in a browser ---------------- */
@@ -123,6 +150,14 @@ await check('in a browser, "Deshabilitar acciones" is not an "enable" button', a
   );
   const enable = await page.locator('button').filter({ hasText: loose('enableActions') }).allTextContents();
   assert.deepEqual(enable, ['Habilitar acciones']);
+});
+
+await check('in a browser, only "작업 사용 설정" is a Korean "enable" button', async () => {
+  await page.setContent(
+    '<!doctype html><meta charset="utf-8"><button>모든 커넥터 사용 설정</button><button>작업 사용 중지</button><button>작업 사용 설정</button>',
+  );
+  const enable = await page.locator('button').filter({ hasText: loose('enableActions') }).allTextContents();
+  assert.deepEqual(enable, ['작업 사용 설정']);
 });
 
 await browser.close();

@@ -6,7 +6,7 @@
  * OAuth popup (account chooser -> scroll-gated Allow) -> "Disable actions".
  *
  *   node mock/server.js            # then point TARGET_URL at the printed URL
- *   MOCK_LANG=es node mock/server.js   # same app, Spanish UI (also: pt)
+ *   MOCK_LANG=es node mock/server.js   # same app, Spanish UI (also: pt, ko)
  */
 import http from 'node:http';
 
@@ -72,6 +72,26 @@ const STRINGS = {
     selectAll: 'Selecionar tudo', cancel: 'Cancelar', allow: 'Permitir',
     scrollHint: 'Role para baixo para ativar Permitir.', ready: 'Pronto.',
   },
+  // Gemini Enterprise labels as captured from a live Korean account. Note the
+  // trap: the "Enable all connectors" row (모든 커넥터 사용 설정) contains
+  // 사용 설정, just like the real "Enable actions" button (작업 사용 설정).
+  ko: {
+    signIn: '로그인', next: '다음', email: '이메일', password: '비밀번호',
+    enterEmail: '이메일을 입력하세요', wrongPassword: '잘못된 비밀번호입니다. 다시 시도하세요.',
+    terms: '약관', experimental: '실험용 기능입니다.', understand: '이해함',
+    welcome: 'Gemini Enterprise에 오신 것을 환영합니다', setup: '작업공간을 설정해 보세요.', getStarted: '시작하기',
+    chat: '새 채팅', skills: '스킬', prompt: '일 좀 해 볼까요!', ask: 'Gemini Enterprise에게 물어보기',
+    upload: '파일 추가', tools: '도구 선택', connectors: '소스',
+    allConnectors: '모든 커넥터 사용 설정', search: 'Google 검색',
+    enable: '작업 사용 설정', disable: '작업 사용 중지', toggle: 'Toggle source',
+    createSkill: 'Gemini로 스킬 만들기', browseSkills: '스킬 둘러보기', import: '스킬 업로드',
+    marketplace: '스킬 마켓플레이스', close: '닫기', install: '설치', installed: '설치됨',
+    chooseAccount: '계정 선택', toContinue: '계속하려면 다음 앱으로 이동:',
+    wantsAccess: '에서 Google 계정에 대한 액세스를 요청합니다', permission: '권한',
+    readManage: '다음 데이터 보기 및 관리:', data: '',
+    selectAll: '모두 선택', cancel: '취소', allow: '허용',
+    scrollHint: '아래로 스크롤해야 허용 버튼을 누를 수 있습니다.', ready: '준비되었습니다.',
+  },
 };
 
 const LANG = STRINGS[process.env.MOCK_LANG] ? process.env.MOCK_LANG : 'en';
@@ -89,10 +109,12 @@ const page = (title, body, script = '') => `<!doctype html>
   button.primary{background:#0b57d0;color:#fff;border-color:#0b57d0}
   button:disabled{opacity:.45;cursor:not-allowed}
   input{font:inherit;padding:10px;width:100%;box-sizing:border-box;border:1px solid #c4c7c5;border-radius:6px;margin:8px 0}
+  input[type=checkbox]{width:auto;margin:0}
   .overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:10}
   .modal{background:#fff;padding:28px;border-radius:14px;max-width:460px}
   .row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 8px;border-bottom:1px solid #eee}
   .row .actions{display:flex;align-items:center;gap:12px}
+  .row button{white-space:nowrap}
   .menu{position:absolute;bottom:64px;left:0;width:520px;background:#fff;border:1px solid #ddd;border-radius:12px;padding:8px;box-shadow:0 4px 16px rgba(0,0,0,.18)}
   .toolbar{position:relative;display:flex;gap:8px;margin-top:24px}
   li{list-style:none;padding:14px;border:1px solid #ddd;border-radius:8px;margin:8px 0;cursor:pointer}

@@ -14,6 +14,7 @@
     "mock": "node mock/server.js",
     "mock:es": "MOCK_LANG=es node mock/server.js",
     "mock:pt": "MOCK_LANG=pt node mock/server.js",
+    "mock:ko": "MOCK_LANG=ko node mock/server.js",
     "test:csv": "node tools/test-csv.js",
     "test:i18n": "node tools/test-i18n.js",
     "test:mock": "TARGET_URL=http://localhost:5599/ LOGIN_EMAIL=tester@example.com LOGIN_PASSWORD=secret123 HEADLESS=true BROWSER_CHANNEL= USE_INCOGNITO_WINDOW=false SLOW_MO=0 MANUAL_STEP_TIMEOUT=0 SCREENSHOTS=false node src/index.js --single",
