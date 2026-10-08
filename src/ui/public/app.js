@@ -314,7 +314,7 @@ class App extends LightElement {
           </li>
           <li><strong>Mode</strong> - Full setup does everything; Connectors only and Skills only do one phase plus its check; Verify only is a read-only check.</li>
           <li><strong>Users at a time</strong> - how many browser windows work in parallel. Sign-ins start a few seconds apart.</li>
-          <li><strong>2FA or a security check?</strong> Complete it in that user's browser window - the bot waits for you.</li>
+          <li><strong>2FA or a security check?</strong> Browsers are hidden unless <code>HEADLESS=false</code> is set in <code>.env</code>; with them visible, complete it in that user's window - the bot waits for you.</li>
           <li><strong>Stop run</strong> closes the windows still working and skips users not started yet. A partial report is still saved.</li>
           <li>Every run is saved under <code>runs/&lt;time&gt;/</code>: report.csv, verification.csv, run.log and screenshots per user.</li>
         </ul>

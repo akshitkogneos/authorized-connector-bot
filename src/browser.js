@@ -25,6 +25,9 @@ export async function launchBrowser({ handleSignals = true } = {}) {
   ];
   if (config.incognitoWindow) args.unshift('--incognito');
   if (config.locale) args.push(`--lang=${config.locale}`);
+  // --start-maximized does nothing without a screen: headless windows open at
+  // 800x600, which gives the web apps their narrow layout.
+  if (config.headless) args.push('--window-size=1920,1080');
 
   const launchOptions = {
     headless: config.headless,
@@ -51,6 +54,7 @@ export async function launchBrowser({ handleSignals = true } = {}) {
     acceptDownloads: false,
     // Sets both navigator.language and the Accept-Language header.
     ...(config.locale ? { locale: config.locale } : {}),
+    ...(config.headless ? { userAgent: await regularUserAgent(browser) } : {}),
   });
   context.setDefaultTimeout(config.timeout);
   context.setDefaultNavigationTimeout(config.timeout);
@@ -63,4 +67,18 @@ export async function launchBrowser({ handleSignals = true } = {}) {
   );
 
   return { browser, context, page };
+}
+
+/**
+ * Headless Chrome reports "HeadlessChrome/<version>" as its user agent, which
+ * Google sign-in treats as a bot. Returns the same string without "Headless".
+ */
+async function regularUserAgent(browser) {
+  const cdp = await browser.newBrowserCDPSession();
+  try {
+    const { userAgent } = await cdp.send('Browser.getVersion');
+    return userAgent.replace('HeadlessChrome', 'Chrome');
+  } finally {
+    await cdp.detach().catch(() => {});
+  }
 }

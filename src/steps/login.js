@@ -124,7 +124,10 @@ async function waitForChallenge(page) {
   await page.bringToFront().catch(() => {});
   log.warn('─'.repeat(64));
   log.warn('A verification challenge appeared (2FA / device check).');
-  log.warn(`Please complete it in the browser window. Waiting up to ${Math.round(config.manualStepTimeout / 1000)}s...`);
+  const where = config.headless
+    ? 'The browser is hidden (HEADLESS=true): approve it on your phone if Google asks, or re-run with HEADLESS=false to complete it by hand.'
+    : 'Please complete it in the browser window.';
+  log.warn(`${where} Waiting up to ${Math.round(config.manualStepTimeout / 1000)}s...`);
   log.warn('─'.repeat(64));
 
   const deadline = Date.now() + config.manualStepTimeout;

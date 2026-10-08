@@ -21,7 +21,9 @@ export const config = {
   email: process.env.LOGIN_EMAIL || '',
   password: process.env.LOGIN_PASSWORD || '',
 
-  headless: bool(process.env.HEADLESS, false),
+  // Hidden browsers by default. --keep-open exists to look at the page
+  // afterwards, so it always shows the browser.
+  headless: bool(process.env.HEADLESS, true) && !process.argv.includes('--keep-open'),
   channel: (process.env.BROWSER_CHANNEL ?? 'chrome').trim(),
   incognitoWindow: bool(process.env.USE_INCOGNITO_WINDOW, true),
   slowMo: int(process.env.SLOW_MO, 120),

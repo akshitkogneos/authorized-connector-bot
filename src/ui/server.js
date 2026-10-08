@@ -175,7 +175,7 @@ function settings() {
     ['Phases', 'SELECT_ALL_SCOPES', config.selectAllScopes, 'Tick "Select all" on the Google consent screen before clicking Allow.'],
     ['Phases', 'EXPECT_CONNECTORS', list(config.expectConnectors), 'Connectors that must end up enabled for a user to count as verified.'],
     ['Phases', 'EXPECT_SKILLS', list(config.expectSkills), 'Skills that must end up installed for a user to count as verified.'],
-    ['Browser', 'HEADLESS', config.headless, 'Hide the browser windows. Google sign-in usually needs them visible.'],
+    ['Browser', 'HEADLESS', config.headless, 'Hide the browser windows (the default). Set it to false to watch them or to finish a 2FA / security check by hand.'],
     ['Browser', 'BROWSER_CHANNEL', config.channel || 'bundled Chromium', 'Browser to drive; "chrome" is recommended for Google sign-in.'],
     ['Browser', 'USE_INCOGNITO_WINDOW', config.incognitoWindow, 'Open a real Incognito window (Chrome only).'],
     ['Browser', 'BROWSER_LOCALE', config.locale || 'system default', 'Language the browser asks websites for.'],

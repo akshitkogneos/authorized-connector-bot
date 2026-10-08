@@ -114,8 +114,9 @@ npm start -- --verify-only     # audit only, nothing is changed
 npm start -- --verify          # force the audit on when DO_VERIFY=false
 ```
 
-Useful during the first run — keeps the browser open at the end (or on failure)
-so you can inspect what the page actually looked like:
+Useful during the first run — shows the browser (even with `HEADLESS=true`) and
+keeps it open at the end (or on failure) so you can inspect what the page
+actually looked like:
 
 ```bash
 npm start -- --keep-open      # single-user mode only
@@ -217,8 +218,8 @@ To change the default itself, set `PARALLEL=N` in `.env`.
 - **Readable output.** Log lines interleave but keep their `[<n>-<email>]`
   prefix, screenshots keep their per-user folders, and `report.csv` /
   `verification.csv` stay in CSV order. The summary adds the total run time.
-- **2FA still works.** If a challenge appears, that user's window is brought
-  to the front so you can find it among the others.
+- **2FA still works** with `HEADLESS=false`. If a challenge appears, that
+  user's window is brought to the front so you can find it among the others.
 
 > [!TIP]
 > Budget roughly 0.5–1 GB of RAM per window. The practical ceiling is usually
@@ -239,7 +240,8 @@ Google Cloud console and built with Google's
 [Material Web](https://github.com/material-components/material-web)
 components. It only listens on this machine. The UI uses the same `.env` and
 `data/users.csv` as the commands above, and runs users exactly the same way:
-every user gets its own browser window, and you complete 2FA in that window.
+every user gets its own browser (hidden unless `HEADLESS=false`, which is what
+you need to complete 2FA in that window).
 
 | Page | What it does |
 |------|--------------|
@@ -409,6 +411,7 @@ commented list. The ones you are most likely to touch:
 | `DO_CONNECTORS` / `DO_SKILLS` | `true` | Enable/disable a phase without CLI flags |
 | `DO_VERIFY` | `true` | Run the read-only audit after the work phases |
 | `EXPECT_CONNECTORS` / `EXPECT_SKILLS` | empty | Names that must be enabled/installed for a user to pass (substring match) |
+| `HEADLESS` | `true` | Hide the browsers; `false` shows them (needed to finish 2FA by hand) |
 | `BROWSER_CHANNEL` | `chrome` | `chrome` = real Chrome, empty = bundled Chromium |
 | `USE_INCOGNITO_WINDOW` | `true` | Launch Chrome with `--incognito` |
 | `BROWSER_LOCALE` | empty | Language the browser asks for, e.g. `en-US`, `es-ES` (empty = machine default) |
@@ -419,9 +422,10 @@ commented list. The ones you are most likely to touch:
 | `PARALLEL` | `5` | Users a batch run processes at the same time, each in its own browser (add `parallel=N` to a command to override) |
 
 > [!IMPORTANT]
-> Leave `HEADLESS=false`. Google's sign-in and OAuth consent screens routinely
-> block headless browsers, and a real window is also what lets you complete a
-> 2FA challenge when one appears.
+> Browsers run headless by default. Headless mode uses a 1920×1080 window and
+> reports the normal Chrome user agent, but Google can still flag a hidden
+> browser. Set `HEADLESS=false` if sign-in or OAuth consent starts failing, or
+> when you need to complete a 2FA challenge by hand.
 
 > [!WARNING]
 > `.env` holds a plaintext password. It is already in `.gitignore` — never
@@ -554,6 +558,7 @@ tools/
 | `Could not click "Allow"` | The consent screen used a different label — add it to `clickAllow` in [consent.js](./src/steps/consent.js). |
 | Chrome won't launch | Set `BROWSER_CHANNEL=` (empty) and run `npx playwright install chromium`. |
 | Sign-in blocked | Run once with `--keep-open`, log in manually to clear the security prompt, then re-run. |
+| Sign-in or consent fails only when headless (e.g. *"This browser or app may not be secure"*) | Google flagged the hidden browser. Set `HEADLESS=false` in `.env`. |
 | Parallel run: sign-ins start hitting verification / CAPTCHA screens | Too many logins from one IP at once. Re-run with a lower `parallel=N` (or lower `PARALLEL` in `.env`) and/or raise `BATCH_DELAY` — completed users are simply verified again. |
 | `npm error code EUNKNOWNCONFIG … Unknown cli flag: --parallel` | npm rejected the dashed flag before the bot started. Drop the dashes: `npm run verify parallel=5` (or use `npm run verify -- --parallel=5`). |
 | Verification says FAIL but the UI looks fine | Compare the names it lists against `SKIP_CONNECTORS` — a row you deliberately skip but that still shows *Enable actions* counts as pending only if it is **not** on that list. Check `runs/<timestamp>/*/verify-*.png`. |
