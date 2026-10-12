@@ -97,7 +97,7 @@ const STRINGS = {
 const LANG = STRINGS[process.env.MOCK_LANG] ? process.env.MOCK_LANG : 'en';
 const S = STRINGS[LANG];
 
-const CONNECTORS = [S.allConnectors, S.search, 'Gmail', 'Google Calendar', 'Google Drive'];
+const CONNECTORS = [S.allConnectors, S.search, 'Gmail', 'Google Calendar', 'Google Drive', 'Google Chat'];
 const ACTIONABLE = CONNECTORS.slice(2);
 const SKILLS = ['Acme /deal-desk', 'Acme /weather-report', 'Acme /travel-plan', 'Acme /expense-audit'];
 
