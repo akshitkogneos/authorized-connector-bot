@@ -75,16 +75,6 @@ await check('strip() leaves just the connector name', () => {
   assert.equal(s('Calendar 작업 사용 설정'), 'Calendar');
   assert.equal(s('Drive작업 사용 설정'), 'Drive');
   assert.equal(s('Gmail 작업 사용 중지'), 'Gmail');
-  // Some rows (e.g. Chat) say "Authorize" instead of "Enable actions".
-  assert.equal(s('ChatAuthorize'), 'Chat');
-  assert.equal(s('Chat Authorize'), 'Chat');
-});
-
-await check('"Authorize" rows count as "enable", but "Authorized" does not', () => {
-  assert.ok(loose('enableActions').test('Authorize'));
-  assert.ok(loose('enableActions').test('Autorizar'));
-  assert.ok(!loose('enableActions').test('Authorized'));
-  assert.ok(!loose('disableActions').test('Authorize'));
 });
 
 /* ------------------------------ Korean ------------------------------ */

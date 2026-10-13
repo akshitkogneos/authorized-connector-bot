@@ -16,8 +16,6 @@ import { ariaContains, ariaEquals, re, strip } from '../i18n.js';
  *    </md-outlined-button> plus an <md-switch>. The label text lives in the
  *    host's light DOM, so we must target the host element, not the inner
  *    <button> (whose own text is empty because it only renders a <slot>).
- *  - Some rows (e.g. Chat) show "Authorize" instead of "Enable actions". The
- *    flow behind it is identical, so i18n's `enableActions` covers both.
  */
 const BUTTON_HOSTS = 'md-outlined-button, md-filled-button, md-text-button, md-filled-tonal-button, button, [role="button"]';
 
@@ -207,9 +205,8 @@ async function enableOne(page, context, row, accountEmail) {
   const popupPromise = context.waitForEvent('page', { timeout: 20_000 }).catch(() => null);
 
   await row.button.scrollIntoViewIfNeeded().catch(() => {});
-  const buttonText = clean(await row.button.textContent().catch(() => '')) || 'Enable actions';
   await row.button.click({ timeout: 15_000 }).catch(() => row.button.click({ force: true }));
-  log.ok(`clicked "${buttonText}"`);
+  log.ok('clicked "Enable actions"');
 
   const popup = await popupPromise;
 
@@ -226,7 +223,7 @@ async function enableOne(page, context, row, accountEmail) {
       ],
       { timeout: 8_000 },
     );
-    if (!inline) throw new Error(`No consent screen appeared after clicking "${buttonText}".`);
+    if (!inline) throw new Error('No consent screen appeared after clicking "Enable actions".');
     await completeConsent(page, row.label, accountEmail);
   }
 
