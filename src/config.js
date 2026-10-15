@@ -35,7 +35,8 @@ export const config = {
   locale: (process.env.BROWSER_LOCALE || '').trim(),
 
   skipConnectors: list(process.env.SKIP_CONNECTORS, 'Enable all connectors,Google Search'),
-  maxConnectors: int(process.env.MAX_CONNECTORS, 3),
+  // Gmail, Google Calendar, Google Drive and Google Chat.
+  maxConnectors: int(process.env.MAX_CONNECTORS, 4),
   maxSkills: int(process.env.MAX_SKILLS, 10),
   doConnectors: bool(process.env.DO_CONNECTORS, true),
   doSkills: bool(process.env.DO_SKILLS, true),

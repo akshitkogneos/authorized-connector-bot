@@ -21,8 +21,8 @@ signs in, and then runs three phases:
 | 3 | Clicks **I understand** (only shown on the first ever login) |
 | 4 | Clicks **Get started** in the welcome popup |
 | 5 | Waits for the composer, clicks the connectors icon (3rd from the left, accessible name **Sources**) |
-| 6 | Skips *Enable all connectors* and *Google Search* — they have no **Enable actions** button |
-| 7 | For each remaining row (Calendar, Drive, Gmail): clicks **Enable actions** |
+| 6 | Skips *Enable all connectors* and *Google Search* — they have no **Enable actions** / **Authorize** button |
+| 7 | For each remaining row (Calendar, Drive, Gmail, Chat): clicks **Enable actions** — or **Authorize**, which some rows (e.g. Chat) show instead; the flow is the same |
 | 8 | In the popup: picks your account under *Choose an account* |
 | 9 | Scrolls all the way down and clicks **Allow** |
 | 10 | Re-opens the menu, confirms the row now reads **Disable actions**, moves to the next one |
@@ -62,7 +62,7 @@ A user is **verified** when both of these hold:
 > [!TIP]
 > The second check is what catches a connector that is *missing from the account
 > altogether*: the UI never offers it, so the first check would pass while the
-> user is not actually set up. Set `EXPECT_CONNECTORS=Gmail,Google Calendar,Google Drive`
+> user is not actually set up. Set `EXPECT_CONNECTORS=Gmail,Google Calendar,Google Drive,Google Chat`
 > to make that a hard failure.
 
 All three phases are resumable: anything already authorized or installed is
@@ -314,12 +314,12 @@ npm run test:ui       # terminal 2 - the web UI with the mock accounts (see Web 
 Expected tail of `npm run test:mock`:
 
 ```
-connectors awaiting authorization: "Gmail", "Google Calendar", "Google Drive"
-(1/3) Enabling actions for "Gmail"      ... "Gmail" now shows "Disable actions"
+connectors awaiting authorization: "Gmail", "Google Calendar", "Google Drive", "Google Chat"
+(1/4) Enabling actions for "Gmail"      ... "Gmail" now shows "Disable actions"
 ...
 (4) Installing "/expense-audit"         ... "/expense-audit" installed (0 left)
 Verifying the account state
-connectors enabled: "Gmail", "Google Calendar", "Google Drive"
+connectors enabled: "Gmail", "Google Calendar", "Google Drive", "Google Chat"
 every connector is enabled
 skills installed: 4
 every skill is installed
@@ -330,7 +330,7 @@ VERIFIED - account is fully set up
 verdict and must list everything as outstanding:
 
 ```
-connectors NOT enabled: "Gmail", "Google Calendar", "Google Drive"
+connectors NOT enabled: "Gmail", "Google Calendar", "Google Drive", "Google Chat"
 skills NOT installed: "/deal-desk", "/weather-report", "/travel-plan", "/expense-audit"
 NOT VERIFIED - see the items above
 ```
@@ -406,7 +406,7 @@ commented list. The ones you are most likely to touch:
 | `TARGET_URL` | — | Page to open |
 | `LOGIN_EMAIL` / `LOGIN_PASSWORD` | — | Credentials typed at sign-in |
 | `SKIP_CONNECTORS` | `Enable all connectors,Google Search` | Rows the bot must never touch (substring match) |
-| `MAX_CONNECTORS` | `3` | Safety cap per run |
+| `MAX_CONNECTORS` | `4` | Safety cap per run |
 | `MAX_SKILLS` | `10` | Safety cap on skill installs per run |
 | `DO_CONNECTORS` / `DO_SKILLS` | `true` | Enable/disable a phase without CLI flags |
 | `DO_VERIFY` | `true` | Run the read-only audit after the work phases |

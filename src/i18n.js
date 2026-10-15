@@ -130,14 +130,17 @@ const T = {
     it: ['Seleziona strumenti', 'Strumenti'],
     ko: ['도구 선택', '도구'],
   },
+  // The per-row button that starts a connector's OAuth flow. Most rows say
+  // "Enable actions", but some (e.g. Chat) say "Authorize" instead - the
+  // steps after the click are identical, so both wordings live here.
   enableActions: {
-    en: ['Enable actions'],
-    es: ['Habilitar acciones', 'Activar acciones'],
-    pt: ['Ativar ações', 'Habilitar ações'],
-    fr: ['Activer les actions'],
-    de: ['Aktionen aktivieren'],
-    it: ['Attiva azioni', 'Abilita azioni'],
-    ko: ['작업 사용 설정', '작업 활성화', '액션 사용 설정', '액션 활성화'],
+    en: ['Enable actions', 'Authorize', 'Authorise'],
+    es: ['Habilitar acciones', 'Activar acciones', 'Autorizar'],
+    pt: ['Ativar ações', 'Habilitar ações', 'Autorizar'],
+    fr: ['Activer les actions', 'Autoriser'],
+    de: ['Aktionen aktivieren', 'Autorisieren'],
+    it: ['Attiva azioni', 'Abilita azioni', 'Autorizza'],
+    ko: ['작업 사용 설정', '작업 활성화', '액션 사용 설정', '액션 활성화', '승인', '권한 부여'],
   },
   disableActions: {
     en: ['Disable actions'],
