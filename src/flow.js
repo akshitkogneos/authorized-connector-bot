@@ -18,7 +18,7 @@ import { verifyUser } from './steps/verify.js';
  * Each phase is wrapped individually: one failing phase is recorded and the
  * other still runs.
  */
-export async function runUserFlow({ page, context, user, phases }) {
+export async function runUserFlow({ page, context, user, phases, connectors = config.onlyConnectors }) {
   const result = {
     email: user.email,
     authorized: 0,
@@ -38,7 +38,7 @@ export async function runUserFlow({ page, context, user, phases }) {
 
   if (phases.connectors) {
     try {
-      const { authorized, failed } = await authorizeConnectors(page, context, user.email);
+      const { authorized, failed } = await authorizeConnectors(page, context, user.email, { only: connectors });
       result.authorized = authorized;
       result.connectorsFailed = failed;
     } catch (err) {
@@ -66,7 +66,7 @@ export async function runUserFlow({ page, context, user, phases }) {
 
   if (phases.verify) {
     try {
-      result.verify = await verifyUser(page, verifyScope(phases));
+      result.verify = await verifyUser(page, verifyScope(phases), { connectors });
     } catch (err) {
       log.error(`verification phase failed: ${err.message}`);
       await shoot(page, 'verify-failure');

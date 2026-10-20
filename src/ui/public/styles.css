@@ -816,6 +816,23 @@ eg-app {
   line-height: 16px;
 }
 
+.connector-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 24px;
+  padding: 4px 24px 18px;
+}
+
+.connector-picker-head {
+  min-width: 220px;
+}
+
+.connector-picker.is-muted md-chip-set,
+.connector-picker.is-muted .switch-label {
+  opacity: 0.6;
+}
+
 .settings-note {
   display: flex;
   align-items: flex-start;

@@ -3,7 +3,7 @@ import { log, shoot } from '../logger.js';
 import { firstVisible, sleep } from '../utils.js';
 import { closeMenu, connectorsButton, readConnectorStates } from './connectors.js';
 import { openSkillsPage, readSkillStates } from './skills.js';
-import { ariaEquals, re } from '../i18n.js';
+import { ariaEquals, connectorMatcher, connectorNames, re } from '../i18n.js';
 
 /**
  * Phase 3 - verification.
@@ -24,7 +24,7 @@ import { ariaEquals, re } from '../i18n.js';
  *     from the account altogether, so the UI never offers it and check 1
  *     passes vacuously.
  */
-export async function verifyUser(page, scope = { connectors: true, skills: true }) {
+export async function verifyUser(page, scope = { connectors: true, skills: true }, { connectors: only = null } = {}) {
   log.step('Verifying the account state');
 
   const report = {
@@ -38,7 +38,7 @@ export async function verifyUser(page, scope = { connectors: true, skills: true 
     ok: false,
   };
 
-  if (scope.connectors) await checkConnectors(page, report);
+  if (scope.connectors) await checkConnectors(page, report, only);
   if (scope.skills) await checkSkills(page, report);
 
   report.ok =
@@ -53,11 +53,11 @@ export async function verifyUser(page, scope = { connectors: true, skills: true 
 
 /* ------------------------------------------------------------------ */
 
-async function checkConnectors(page, report) {
+async function checkConnectors(page, report, only) {
   try {
     await returnToComposer(page);
 
-    const { enabled, pending, skipped } = await readConnectorStates(page);
+    const { enabled, pending, skipped } = await readConnectorStates(page, { only });
     report.connectorsEnabled = enabled;
     report.connectorsPending = pending;
     report.connectorsSkipped = skipped;
@@ -65,6 +65,11 @@ async function checkConnectors(page, report) {
     report.missingExpected.push(
       ...missing(config.expectConnectors, enabled).map((name) => `connector:${name}`),
     );
+    // Every selected connector must be enabled - this catches one the account
+    // doesn't offer at all, which would otherwise pass unnoticed.
+    for (const pick of only ?? []) {
+      if (!enabled.some(connectorMatcher([pick]))) report.missingExpected.push(`connector:${connectorNames([pick])[0]}`);
+    }
 
     await shoot(page, 'verify-connectors');
   } catch (err) {
@@ -152,7 +157,7 @@ function summarize(report, scope) {
   if (scope.connectors) {
     log.info(`connectors enabled: ${list(report.connectorsEnabled)}`);
     if (report.connectorsSkipped.length) {
-      log.info(`connectors ignored via SKIP_CONNECTORS: ${list(report.connectorsSkipped)}`);
+      log.info(`connectors left alone (not selected or in SKIP_CONNECTORS): ${list(report.connectorsSkipped)}`);
     }
     if (report.connectorsPending.length) {
       log.error(`connectors NOT enabled: ${list(report.connectorsPending)}`);

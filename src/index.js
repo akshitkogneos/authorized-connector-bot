@@ -4,7 +4,7 @@ import { assertConfig, config, resolvePhases } from './config.js';
 import { launchBrowser } from './browser.js';
 import { log, runDir } from './logger.js';
 import { runUserFlow } from './flow.js';
-import { csvUsers, runBatch, CSV_PATH } from './batch.js';
+import { csvUsers, runBatch, CSV_PATH, CONNECTOR_SELECTION } from './batch.js';
 
 const KEEP_OPEN = process.argv.includes('--keep-open');
 const FORCE_SINGLE = process.argv.includes('--single');
@@ -59,6 +59,7 @@ async function runSingle() {
       context,
       user: { email: config.email, password: config.password },
       phases: phasesFromArgs(),
+      connectors: CONNECTOR_SELECTION,
     });
 
     log.step('Summary');

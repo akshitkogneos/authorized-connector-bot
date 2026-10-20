@@ -289,6 +289,7 @@ class App extends LightElement {
           .csv=${info?.csv ?? null}
           .modes=${info?.modes ?? null}
           .defaults=${info?.defaults ?? null}
+          .connectorCatalog=${info?.connectors ?? []}
           .target=${info?.target ?? ''}
           .run=${this.run}
           .logs=${this.logs}
@@ -313,6 +314,7 @@ class App extends LightElement {
             <code>data/uploads/</code>.
           </li>
           <li><strong>Mode</strong> - Full setup does everything; Connectors only and Skills only do one phase plus its check; Verify only is a read-only check.</li>
+          <li><strong>Connectors</strong> - tick the connectors to enable for every user in the run (all of them when every box is ticked). Verification then checks just those. Works whatever the account's UI language.</li>
           <li><strong>Users at a time</strong> - how many browser windows work in parallel. Sign-ins start a few seconds apart.</li>
           <li><strong>2FA or a security check?</strong> Browsers are hidden unless <code>HEADLESS=false</code> is set in <code>.env</code>; with them visible, complete it in that user's window - the bot waits for you.</li>
           <li><strong>Stop run</strong> closes the windows still working and skips users not started yet. A partial report is still saved.</li>

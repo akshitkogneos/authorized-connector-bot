@@ -8,6 +8,7 @@ import { launchBrowser } from './browser.js';
 import { log, mute, newRunDir, withRunContext, withRunRoot } from './logger.js';
 import { readCsvObjects, toUsers, writeCsv } from './csv.js';
 import { runUserFlow } from './flow.js';
+import { connectorNames } from './i18n.js';
 
 const args = process.argv.slice(2);
 const flag = (name) => args.includes(`--${name}`);
@@ -27,6 +28,14 @@ const parallelArg = Number.parseInt(value('parallel', ''), 10);
 export const PARALLEL = Math.max(1, Number.isFinite(parallelArg) ? parallelArg : config.parallel);
 
 const cliPhases = resolvePhases(args);
+
+// Connectors to enable: `connectors=gmail,drive` on the command line, else
+// ONLY_CONNECTORS from .env. Empty = every connector.
+const connectorsArg = value('connectors', null);
+export const CONNECTOR_SELECTION =
+  connectorsArg === null
+    ? config.onlyConnectors
+    : connectorsArg.split(',').map((s) => s.trim()).filter(Boolean);
 
 /** report.csv columns, in order. */
 const COLUMNS = [
@@ -81,6 +90,8 @@ export function csvUsers() {
  * @param {number} [options.parallel] users processed at the same time
  * @param {{connectors: boolean, skills: boolean, verify: boolean}} [options.phases]
  * @param {string[]} [options.emails] only run these users
+ * @param {string[]} [options.connectors] connectors to enable (ids such as
+ *   "gmail" or row names); empty = every connector
  * @param {AbortSignal} [options.signal] stops the run: users in progress are
  *   closed and marked `stopped`, users not started yet are marked `not run`
  * @param {(event: object) => void} [options.onEvent] progress callback:
@@ -94,6 +105,7 @@ export async function runBatch({
   parallel = PARALLEL,
   phases = cliPhases,
   emails = null,
+  connectors = CONNECTOR_SELECTION,
   signal = null,
   onEvent = () => {},
   source = 'cli',
@@ -132,11 +144,14 @@ export async function runBatch({
   }
 
   const root = newRunDir();
-  return withRunRoot(root, () => execute({ users, root, csvPath, parallel, phases, signal, emit, source }));
+  const picked = (connectors || []).map((c) => String(c).trim()).filter(Boolean);
+  return withRunRoot(root, () =>
+    execute({ users, root, csvPath, parallel, phases, connectors: picked, signal, emit, source }),
+  );
 }
 
 /** The body of runBatch(), once the input is known to be good. Runs inside the run's folder. */
-async function execute({ users, root, csvPath, parallel, phases, signal, emit, source }) {
+async function execute({ users, root, csvPath, parallel, phases, connectors, signal, emit, source }) {
   const lanes = Math.max(1, Math.min(parallel, users.length));
   const started = Date.now();
   const run = {
@@ -152,6 +167,8 @@ async function execute({ users, root, csvPath, parallel, phases, signal, emit, s
     csv: path.relative(process.cwd(), csvPath),
     mode: modeOf(phases),
     phases,
+    // Connectors this run enables / checks ([] = every connector).
+    connectors,
     parallel: lanes,
     // Kept up to date as users start and finish, so run.json shows the
     // progress of a run in flight and what finished if it never completes.
@@ -165,6 +182,9 @@ async function execute({ users, root, csvPath, parallel, phases, signal, emit, s
   const auditOnly = !phases.connectors && !phases.skills;
   log.step(`Batch run: ${users.length} user(s) from ${run.csv}`);
   if (auditOnly) log.info('audit only - nothing will be changed');
+  if (phases.connectors || phases.verify) {
+    log.info(`connectors: ${connectors.length ? connectorNames(connectors).join(', ') : 'all'}`);
+  }
   if (lanes > 1) {
     log.info(
       `running ${lanes} users at a time, each in its own browser (sign-ins start at least ${
@@ -198,7 +218,7 @@ async function execute({ users, root, csvPath, parallel, phases, signal, emit, s
       emit({ type: 'user-start', index, email: user.email, startedAt });
       const outcome = await withRunContext(
         `${index + 1}-${user.email}`,
-        () => runUser(user, index, users.length, phases, signal),
+        () => runUser(user, index, users.length, phases, signal, connectors),
         { index, email: user.email },
       );
       results[index] = outcome.row;
@@ -261,7 +281,7 @@ const STOPPED = new Error('run stopped');
  * Never throws: any failure becomes a `failed` row, so one user's failure
  * never stops the rest.
  */
-async function runUser(user, index, total, phases, signal) {
+async function runUser(user, index, total, phases, signal, connectors = []) {
   log.step(`===== User ${index + 1}/${total}: ${user.email} =====`);
 
   const started = Date.now();
@@ -277,7 +297,7 @@ async function runUser(user, index, total, phases, signal) {
     ({ browser, context } = await launchBrowser({ handleSignals: !signal }));
     const page = context.pages()[0] || (await context.newPage());
 
-    const outcome = await untilStopped(runUserFlow({ page, context, user, phases }), signal);
+    const outcome = await untilStopped(runUserFlow({ page, context, user, phases, connectors }), signal);
 
     row.connectors = outcome.authorized;
     row.connectors_failed = outcome.connectorsFailed.join(' | ');

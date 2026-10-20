@@ -5,8 +5,9 @@ import path from 'node:path';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config.js';
-import { CSV_PATH, PARALLEL } from '../batch.js';
+import { CONNECTOR_SELECTION, CSV_PATH, PARALLEL } from '../batch.js';
 import { isActive, readCsvObjects, toUsers } from '../csv.js';
+import { CONNECTORS, connectorNames } from '../i18n.js';
 import { log } from '../logger.js';
 import { MAX_UPLOAD_BYTES, createCsvStore } from './csv-files.js';
 import { isRunId, listRuns, loadRun } from './history.js';
@@ -91,7 +92,9 @@ function state() {
     target: config.targetUrl,
     csv: readUsers(),
     modes: modePhases(),
-    defaults: { mode: 'full', parallel: PARALLEL },
+    defaults: { mode: 'full', parallel: PARALLEL, connectors: CONNECTOR_SELECTION },
+    // The connectors the page offers as checkboxes.
+    connectors: Object.entries(CONNECTORS).map(([id, c]) => ({ id, label: c.label })),
     settings: settings(),
   };
 }
@@ -172,6 +175,7 @@ function settings() {
     ['Phases', 'MAX_CONNECTORS', config.maxConnectors, 'Safety cap on connectors authorized per user.'],
     ['Phases', 'MAX_SKILLS', config.maxSkills, 'Safety cap on skills installed per user.'],
     ['Phases', 'SKIP_CONNECTORS', list(config.skipConnectors), 'Connector rows that are never touched.'],
+    ['Phases', 'ONLY_CONNECTORS', list(connectorNames(CONNECTOR_SELECTION)) || 'all', 'Connectors ticked by default on the Run page (gmail, calendar, drive, chat or any row name). Empty = all.'],
     ['Phases', 'SELECT_ALL_SCOPES', config.selectAllScopes, 'Tick "Select all" on the Google consent screen before clicking Allow.'],
     ['Phases', 'EXPECT_CONNECTORS', list(config.expectConnectors), 'Connectors that must end up enabled for a user to count as verified.'],
     ['Phases', 'EXPECT_SKILLS', list(config.expectSkills), 'Skills that must end up installed for a user to count as verified.'],
@@ -195,11 +199,20 @@ async function startRun(req, res) {
     emails = body.emails.filter((e) => typeof e === 'string' && e.trim());
     if (!emails.length) throw new HttpError(400, 'No users selected.');
   }
+  // Connectors to enable: catalog ids or row names. Missing = the .env default, [] = all.
+  let connectors = CONNECTOR_SELECTION;
+  if (Array.isArray(body.connectors)) {
+    connectors = body.connectors
+      .filter((c) => typeof c === 'string' && c.trim())
+      .map((c) => c.trim().slice(0, 100))
+      .slice(0, 50);
+  }
   const run = await runner.start({
     mode,
     parallel: Number.isFinite(parallel) ? Math.min(Math.max(parallel, 1), 50) : PARALLEL,
     includeInactive: body.includeInactive === true,
     emails,
+    connectors,
     csvPath: csvFiles.path(),
   });
   sendJson(res, 202, { id: run.id });

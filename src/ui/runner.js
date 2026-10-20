@@ -122,7 +122,7 @@ export function createRunner({ runsDir, broadcast }) {
    * an HttpError: 409 while another run is active, 400 when runBatch refuses
    * the input (no TARGET_URL, no CSV, no matching users).
    */
-  function start({ mode = 'full', parallel, includeInactive = false, emails = null, csvPath }) {
+  function start({ mode = 'full', parallel, includeInactive = false, emails = null, connectors = undefined, csvPath }) {
     if (controller) return Promise.reject(new HttpError(409, 'A run is already in progress.'));
     const ctl = new AbortController();
     controller = ctl;
@@ -140,6 +140,7 @@ export function createRunner({ runsDir, broadcast }) {
         parallel,
         phases: resolvePhases(MODES[mode] ?? []),
         emails,
+        connectors, // undefined = runBatch's default (connectors=... / ONLY_CONNECTORS)
         signal: ctl.signal,
         onEvent,
         source: 'ui',

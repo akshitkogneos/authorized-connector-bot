@@ -92,12 +92,32 @@ const STRINGS = {
     selectAll: '모두 선택', cancel: '취소', allow: '허용',
     scrollHint: '아래로 스크롤해야 허용 버튼을 누를 수 있습니다.', ready: '준비되었습니다.',
   },
+  // Simplified Chinese. 开始 / 新对话 / 技能 match a live zh-CN account; the
+  // connector names are localized too, to exercise the connector picker.
+  zh: {
+    signIn: '登录', next: '下一步', email: '电子邮件地址', password: '密码',
+    enterEmail: '请输入电子邮件地址', wrongPassword: '密码错误，请重试。',
+    terms: '条款', experimental: '这是一项实验性功能。', understand: '我了解',
+    welcome: '欢迎使用 Gemini Enterprise！', setup: '让我们来设置您的工作区。', getStarted: '开始',
+    chat: '新对话', skills: '技能', prompt: '开始工作吧！', ask: '向 Gemini Enterprise 提问',
+    upload: '添加文件', tools: '选择工具', connectors: '来源',
+    allConnectors: '启用所有连接器', search: 'Google 搜索',
+    enable: '启用操作', disable: '停用操作', toggle: 'Toggle source',
+    createSkill: '使用 Gemini 创建技能', browseSkills: '浏览技能', import: '上传技能',
+    marketplace: '技能市场', close: '关闭', install: '安装', installed: '已安装',
+    chooseAccount: '选择帐号', toContinue: '以继续使用',
+    wantsAccess: '想要访问您的 Google 帐号', permission: '权限',
+    readManage: '查看和管理您的', data: '数据',
+    selectAll: '全选', cancel: '取消', allow: '允许',
+    scrollHint: '向下滚动才能点击“允许”。', ready: '已就绪。',
+    names: ['Gmail', 'Google 日历', 'Google 云端硬盘', 'Google Chat'],
+  },
 };
 
 const LANG = STRINGS[process.env.MOCK_LANG] ? process.env.MOCK_LANG : 'en';
 const S = STRINGS[LANG];
 
-const CONNECTORS = [S.allConnectors, S.search, 'Gmail', 'Google Calendar', 'Google Drive', 'Google Chat'];
+const CONNECTORS = [S.allConnectors, S.search, ...(S.names ?? ['Gmail', 'Google Calendar', 'Google Drive', 'Google Chat'])];
 const ACTIONABLE = CONNECTORS.slice(2);
 const SKILLS = ['Acme /deal-desk', 'Acme /weather-report', 'Acme /travel-plan', 'Acme /expense-audit'];
 

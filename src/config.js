@@ -35,6 +35,11 @@ export const config = {
   locale: (process.env.BROWSER_LOCALE || '').trim(),
 
   skipConnectors: list(process.env.SKIP_CONNECTORS, 'Enable all connectors,Google Search'),
+  // Which connectors to enable: ids from CONNECTORS in src/i18n.js (gmail,
+  // calendar, drive, chat) - each matches its label in every UI language - or
+  // any other row name. Empty = every connector. The web UI and
+  // `connectors=...` on the command line override it per run.
+  onlyConnectors: list(process.env.ONLY_CONNECTORS, ''),
   // Gmail, Google Calendar, Google Drive and Google Chat.
   maxConnectors: int(process.env.MAX_CONNECTORS, 4),
   maxSkills: int(process.env.MAX_SKILLS, 10),

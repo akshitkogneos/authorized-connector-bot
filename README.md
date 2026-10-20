@@ -356,7 +356,7 @@ Gemini Enterprise and Google's sign-in / consent screens show up in the
 *Permitir* instead of *Enable actions* and *Allow*. The bot recognises every
 button in:
 
-**English · Spanish · Portuguese · French · German · Italian · Korean**
+**English · Spanish · Portuguese · French · German · Italian · Korean · Chinese (Simplified)**
 
 Nothing to configure. Mixed-language CSVs work too, because each button is
 matched against all languages at once.
@@ -371,6 +371,11 @@ is never found inside *설치됨* (Installed). Accent-stripping recomposes Hangu
 afterwards (NFC). Without that step a Korean pattern never matches, because
 Unicode decomposition splits every syllable into separate jamo.
 
+Chinese has no spaces between words, so Han characters are *not* treated as
+letters (otherwise *开始* would not be found in *开始使用*). Instead, *已*, *未* and
+*消* in front of a wording block the match, so *授权* (Authorize) is never found
+in *已授权* (Authorized) or *取消授权* (Revoke), nor *安装* in *已安装*.
+
 > [!NOTE]
 > Korean has been run end to end against a real Korean account: sign-in,
 > onboarding, the Sources menu, the Korean OAuth consent screen and the skills
@@ -379,10 +384,10 @@ Unicode decomposition splits every syllable into separate jamo.
 > screenshot in `runs/<timestamp>/`, then add the exact wording to the
 > matching list in `src/i18n.js`.
 
-Test it offline. The mock app can be served in Spanish, Portuguese or Korean:
+Test it offline. The mock app can be served in Spanish, Portuguese, Korean or Chinese:
 
 ```bash
-npm run mock:es     # terminal 1 (or mock:pt / mock:ko)
+npm run mock:es     # terminal 1 (or mock:pt / mock:ko / mock:zh)
 npm run test:mock   # terminal 2
 npm run test:i18n   # no server needed
 ```
@@ -396,6 +401,22 @@ the browser asks for. Google normally prefers the account's saved language, so
 expect this to matter only for accounts that have none. It never changes the
 account itself.
 
+## Choosing which connectors to enable
+
+By default every connector is enabled. To enable only some of them for every
+user in a run:
+
+- **Web UI** - tick them under *Connectors to enable* in the Run settings card.
+  With every box ticked, the bot enables everything it finds.
+- **Command line** - `npm start connectors=gmail,drive` (or `npm run batch -- connectors=calendar`).
+- **Default** - `ONLY_CONNECTORS=gmail,drive` in `.env` (also pre-ticks the UI).
+
+The ids are `gmail`, `calendar`, `drive` and `chat`. Each one matches its row
+in any UI language (*Drive*, *Google 云端硬盘*, *드라이브*, …) - the list lives in
+`CONNECTORS` in [src/i18n.js](./src/i18n.js). Any other text is matched as a
+substring of the row name. Connectors you didn't pick are left alone, and the
+verification step then checks that every picked connector ended up enabled.
+
 ## Configuration
 
 All settings live in `.env` — see [.env.example](./.env.example) for the full,
@@ -406,6 +427,7 @@ commented list. The ones you are most likely to touch:
 | `TARGET_URL` | — | Page to open |
 | `LOGIN_EMAIL` / `LOGIN_PASSWORD` | — | Credentials typed at sign-in |
 | `SKIP_CONNECTORS` | `Enable all connectors,Google Search` | Rows the bot must never touch (substring match) |
+| `ONLY_CONNECTORS` | *(all)* | Connectors to enable: `gmail,calendar,drive,chat` or row names |
 | `MAX_CONNECTORS` | `4` | Safety cap per run |
 | `MAX_SKILLS` | `10` | Safety cap on skill installs per run |
 | `DO_CONNECTORS` / `DO_SKILLS` | `true` | Enable/disable a phase without CLI flags |
@@ -517,7 +539,7 @@ src/
   flow.js             the per-user journey, shared by both entry points
   csv.js              dependency-free CSV read/write
   config.js           .env parsing, validation, CLI phase resolution
-  i18n.js             every on-screen wording, in en / es / pt / fr / de / it / ko
+  i18n.js             every on-screen wording, in en / es / pt / fr / de / it / ko / zh
   browser.js          incognito launch (Chrome, Chromium fallback)
   utils.js            resilient click / type / scroll helpers
   logger.js           coloured logs + per-user prefixes and screenshot folders (parallel-safe)
@@ -538,7 +560,7 @@ data/
   users.csv           accounts for batch mode (gitignored - holds passwords)
   uploads/            CSVs uploaded in the web UI (gitignored - holds passwords)
 mock/
-  server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt | mock:ko)
+  server.js           offline stand-in for the real app (npm run mock | mock:es | mock:pt | mock:ko | mock:zh)
   users.csv           fake accounts for npm run test:parallel
 tools/
   inspect.js          shadow-DOM selector discovery (composer | skills)

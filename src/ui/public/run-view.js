@@ -31,6 +31,7 @@ export class RunView extends LightElement {
     csv: { attribute: false },
     modes: { attribute: false },
     defaults: { attribute: false },
+    connectorCatalog: { attribute: false },
     target: {},
     run: { attribute: false },
     logs: { attribute: false },
@@ -39,6 +40,7 @@ export class RunView extends LightElement {
     mode: { state: true },
     parallel: { state: true },
     includeInactive: { state: true },
+    picks: { state: true },
     selected: { state: true },
     openKey: { state: true },
     logFilter: { state: true },
@@ -51,6 +53,7 @@ export class RunView extends LightElement {
     this.csv = null;
     this.modes = null;
     this.defaults = null;
+    this.connectorCatalog = [];
     this.target = '';
     this.run = null;
     this.logs = [];
@@ -59,6 +62,7 @@ export class RunView extends LightElement {
     this.mode = 'full';
     this.parallel = 5;
     this.includeInactive = false;
+    this.picks = null; // Set of ticked connector ids / names; null until the catalog arrives
     this.selected = new Set();
     this.openKey = null;
     this.logFilter = 'all';
@@ -72,6 +76,11 @@ export class RunView extends LightElement {
     if (changed.has('defaults') && this.defaults && !this.touched) {
       this.mode = this.defaults.mode;
       this.parallel = this.defaults.parallel;
+    }
+    // Ticked connectors: ONLY_CONNECTORS from .env, else every connector.
+    if ((changed.has('defaults') || changed.has('connectorCatalog')) && this.defaults && !this.touched) {
+      const preset = this.defaults.connectors ?? [];
+      this.picks = new Set(preset.length ? preset.map((c) => this.normalizePick(c)) : this.connectorCatalog.map((c) => c.id));
     }
     // Another users file: the ticked users and the open panel belonged to the old one.
     const before = changed.get('csv');
@@ -258,6 +267,7 @@ export class RunView extends LightElement {
           </span>
         </label>
       </div>
+      ${this.renderConnectorPicker(locked, phases)}
       <div class="settings-note">
         <md-icon>info</md-icon>
         <span>
@@ -268,6 +278,82 @@ export class RunView extends LightElement {
         </span>
       </div>
     </section>`;
+  }
+
+  /* ----------------------------- connectors ----------------------------- */
+
+  /** A catalog id for `value` when it names one ("Drive" -> "drive"), else the text as given. */
+  normalizePick(value) {
+    const v = String(value).trim();
+    const hit = this.connectorCatalog.find((c) => c.id === v.toLowerCase() || c.label.toLowerCase() === v.toLowerCase());
+    return hit ? hit.id : v;
+  }
+
+  /** Chips to show: the catalog, plus any extra row names preset via ONLY_CONNECTORS. */
+  connectorChoices() {
+    const ids = new Set(this.connectorCatalog.map((c) => c.id));
+    const extras = [...(this.picks ?? [])].filter((p) => !ids.has(p)).map((p) => ({ id: p, label: p }));
+    return [...this.connectorCatalog, ...extras];
+  }
+
+  /** What the server gets: [] when every connector is ticked (= all, even ones not in the list). */
+  connectorPayload() {
+    const picks = [...(this.picks ?? [])];
+    const everything = this.connectorCatalog.every((c) => this.picks?.has(c.id));
+    const extras = picks.some((p) => !this.connectorCatalog.some((c) => c.id === p));
+    return everything && !extras ? [] : picks;
+  }
+
+  /** "All connectors" or "Gmail, Google Drive". */
+  connectorSummary(list) {
+    if (!list?.length) return 'all connectors';
+    return list.map((p) => this.connectorCatalog.find((c) => c.id === p)?.label ?? p).join(', ');
+  }
+
+  togglePick(id, on) {
+    this.touched = true;
+    const next = new Set(this.picks ?? []);
+    if (on) next.add(id);
+    else next.delete(id);
+    this.picks = next;
+  }
+
+  renderConnectorPicker(locked, phases) {
+    if (!this.connectorCatalog.length) return nothing;
+    const relevant = !phases || phases.connectors || (!phases.skills && phases.verify);
+    const choices = this.connectorChoices();
+    const count = this.picks?.size ?? 0;
+    const allOn = choices.every((c) => this.picks?.has(c.id));
+    return html`<div class="connector-picker ${relevant ? '' : 'is-muted'}">
+      <div class="connector-picker-head">
+        <span class="switch-label">Connectors to enable</span>
+        <span class="switch-sub">
+          ${relevant
+            ? count
+              ? `${allOn ? 'All connectors' : this.connectorSummary([...this.picks])} - for every user in the run`
+              : 'Tick at least one connector'
+            : 'Not used by this mode'}
+        </span>
+      </div>
+      <md-chip-set aria-label="Connectors to enable">
+        ${choices.map(
+          (c) => html`<md-filter-chip
+            label=${c.label}
+            ?disabled=${locked}
+            .selected=${live(Boolean(this.picks?.has(c.id)))}
+            @click=${(e) => this.togglePick(c.id, e.target.selected)}
+          ></md-filter-chip>`,
+        )}
+      </md-chip-set>
+      <md-text-button
+        ?disabled=${locked}
+        @click=${() => {
+          this.touched = true;
+          this.picks = new Set(allOn ? [] : choices.map((c) => c.id));
+        }}
+        >${allOn ? 'Clear' : 'Select all'}</md-text-button
+      >
+    </div>`;
   }
 
   renderStatus(run, isRunning) {
@@ -302,7 +388,7 @@ export class RunView extends LightElement {
       <div class="status-head">
         ${badge(RUN_STATUS[run.status] ?? RUN_STATUS.done)}
         <span class="status-meta">
-          ${MODES[run.mode]?.label ?? run.mode} · ${plural(run.parallel, 'user')} at a time · started ${clock(run.startedAt)}
+          ${MODES[run.mode]?.label ?? run.mode}${run.connectors?.length ? ` (${this.connectorSummary(run.connectors)})` : ''} · ${plural(run.parallel, 'user')} at a time · started ${clock(run.startedAt)}
         </span>
         <span class="toolbar-spacer"></span>
         <span class="status-elapsed" title="Elapsed"><md-icon>timer</md-icon>${duration(elapsed)}</span>
@@ -397,17 +483,25 @@ export class RunView extends LightElement {
 
   /** Confirms, then starts a run: every user (emails = null), a selection, or a retry. */
   askStart(emails, retry = false) {
-    // A retry repeats the last run's mode; anything else uses the settings card.
+    // A retry repeats the last run's mode and connectors; anything else uses the settings card.
     const mode = retry && this.modes?.[this.run?.mode] ? this.run.mode : this.mode;
     const phases = this.modes?.[mode];
+    const connectors = retry && Array.isArray(this.run?.connectors) ? this.run.connectors : this.connectorPayload();
     const count = emails ? emails.length : (this.csv?.users ?? []).filter((u) => u.active || this.includeInactive).length;
     const lanes = Math.min(this.parallel, count);
     const readOnly = phases && !phases.connectors && !phases.skills;
+    const usesConnectors = !phases || phases.connectors || (!phases.skills && phases.verify);
+
+    if (usesConnectors && !retry && !this.picks?.size) {
+      toast(this, 'Tick at least one connector under "Connectors to enable".');
+      return;
+    }
 
     this.confirm = {
       title: retry ? `Retry ${plural(count, 'user')}?` : `Run ${plural(count, 'user')}?`,
       body: html`
         <p><strong>${MODES[mode]?.label ?? mode}.</strong> ${describePhases(phases)}</p>
+        ${usesConnectors ? html`<p>Connectors: <strong>${this.connectorSummary(connectors)}</strong>.</p>` : nothing}
         <p>
           Each user signs in to <strong>${hostOf(this.target)}</strong> in a new browser window,
           ${lanes > 1 ? `${lanes} at a time` : 'one at a time'}.
@@ -417,11 +511,11 @@ export class RunView extends LightElement {
           : html`<p class="dialog-note"><md-icon>info</md-icon>This changes the accounts: it authorizes connectors and installs skills.</p>`}
       `,
       ok: 'Start run',
-      action: () => this.start(emails, mode),
+      action: () => this.start(emails, mode, connectors),
     };
   }
 
-  async start(emails, mode) {
+  async start(emails, mode, connectors) {
     try {
       await postJson('/api/runs', {
         mode,
@@ -429,6 +523,7 @@ export class RunView extends LightElement {
         // Users picked explicitly run even if their Status isn't Active.
         includeInactive: emails ? true : this.includeInactive,
         emails,
+        connectors, // [] = every connector
       });
       this.selected = new Set();
     } catch (err) {

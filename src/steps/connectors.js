@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { clean, clickFirst, firstVisible, sleep } from '../utils.js';
 import { completeConsent } from './consent.js';
-import { ariaContains, ariaEquals, re, strip } from '../i18n.js';
+import { ariaContains, ariaEquals, connectorMatcher, connectorNames, re, strip } from '../i18n.js';
 
 /**
  * Selector notes (discovered with tools/inspect.js against Gemini Enterprise):
@@ -39,19 +39,27 @@ export const connectorsButton = (page) => [
  * Step 6-10: open the Connectors ("Sources") menu and authorize every
  * connector that is not on the skip list, one at a time.
  *
+ * `only` limits the run to the chosen connectors (see connectorMatcher in
+ * src/i18n.js); empty / null means every connector.
+ *
  * The menu is re-opened for each connector because the OAuth popup tears it
  * down, and because an authorized row swaps its button from "Enable actions"
  * to "Disable actions" - so the list shrinks as we go.
  */
-export async function authorizeConnectors(page, context, accountEmail) {
+export async function authorizeConnectors(page, context, accountEmail, { only = null } = {}) {
   log.step('Opening the Connectors (Sources) menu');
+
+  const isTarget = targetFilter(only);
+  if (only?.length) log.info(`only enabling the selected connectors: ${connectorNames(only).join(', ')}`);
+  // A selection longer than the safety cap still gets every connector it names.
+  const cap = Math.max(config.maxConnectors, only?.length ?? 0);
 
   const processed = new Set();
   const failed = [];
   let done = 0;
 
-  for (let round = 1; round <= config.maxConnectors + 2; round += 1) {
-    if (done >= config.maxConnectors) break;
+  for (let round = 1; round <= cap + 2; round += 1) {
+    if (done >= cap) break;
 
     await openConnectorsMenu(page);
     if (round === 1) await shoot(page, 'connectors-menu');
@@ -62,14 +70,14 @@ export async function authorizeConnectors(page, context, accountEmail) {
       break;
     }
 
-    const next = rows.find((row) => !isSkipped(row.label) && !processed.has(row.label));
+    const next = rows.find((row) => isTarget(row.label) && !processed.has(row.label));
     if (!next) {
-      log.info('remaining connectors are all on the skip list');
+      log.info(only?.length ? 'no selected connector is left to enable' : 'remaining connectors are all on the skip list');
       break;
     }
 
     processed.add(next.label);
-    log.step(`(${done + 1}/${config.maxConnectors}) Enabling actions for "${next.label}"`);
+    log.step(`(${done + 1}/${cap}) Enabling actions for "${next.label}"`);
 
     try {
       await enableOne(page, context, next, accountEmail);
@@ -86,6 +94,15 @@ export async function authorizeConnectors(page, context, accountEmail) {
   await shoot(page, 'connectors-final');
 
   return { authorized: done, failed };
+}
+
+/**
+ * Which rows the bot may enable: never a SKIP_CONNECTORS row, and - when a
+ * selection is given - only rows matching it.
+ */
+function targetFilter(only) {
+  const wanted = connectorMatcher(only);
+  return (label) => !isSkipped(label) && (!wanted || wanted(label));
 }
 
 /* ------------------------------------------------------------------ */
@@ -134,16 +151,18 @@ async function collectEnableRows(page) {
  * Read-only snapshot of the Sources menu: which rows still offer
  * "Enable actions" (pending), and which already read "Disable actions"
  * (enabled). Used by the verification phase, which must never click.
+ * Rows outside the selection (`only`) or on the skip list count as skipped.
  */
-export async function readConnectorStates(page) {
+export async function readConnectorStates(page, { only = null } = {}) {
   await openConnectorsMenu(page);
 
   const pending = await scanRows(enableButtons(page));
   const enabled = await scanRows(disableButtons(page));
+  const isTarget = targetFilter(only);
 
   return {
-    pending: pending.filter((r) => !isSkipped(r.label)).map((r) => r.label),
-    skipped: pending.filter((r) => isSkipped(r.label)).map((r) => r.label),
+    pending: pending.filter((r) => isTarget(r.label)).map((r) => r.label),
+    skipped: pending.filter((r) => !isTarget(r.label)).map((r) => r.label),
     enabled: enabled.map((r) => r.label),
   };
 }

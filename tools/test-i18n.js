@@ -12,7 +12,7 @@
  */
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { LANGUAGES, re, strip, words } from '../src/i18n.js';
+import { LANGUAGES, connectorMatcher, connectorNames, re, strip, words } from '../src/i18n.js';
 
 let passed = 0;
 const check = async (name, fn) => {
@@ -108,6 +108,54 @@ await check('Korean whole-word traps: "설치" is not "설치됨", enable is not
   assert.ok(loose('disableActions').test('작업 사용 중지'));
   // The "Enable all connectors" switch row must never look like a connector button.
   assert.ok(!loose('enableActions').test('모든 커넥터 사용 설정'));
+});
+
+/* --------------------------- Simplified Chinese --------------------------- */
+
+await check('Chinese wordings from a live zh-CN account match', () => {
+  assert.ok(re('getStarted').test('开始'));
+  assert.ok(re('home').test('新对话'));
+  assert.ok(re('skills').test('技能'));
+  assert.ok(re('install').test('安装'));
+  assert.ok(loose('enableActions').test('启用操作'));
+  assert.ok(loose('disableActions').test('停用操作'));
+});
+
+await check('Chinese traps: "已安装" is not "安装", "已授权"/"取消授权" are not "授权", disable is not enable', () => {
+  assert.ok(!re('install').test('已安装'));
+  assert.ok(re('installed').test('已安装'));
+  assert.ok(!loose('enableActions').test('已授权'));
+  assert.ok(!loose('enableActions').test('未授权'));
+  assert.ok(!loose('enableActions').test('取消授权'));
+  assert.ok(loose('enableActions').test('授权'));
+  assert.ok(!loose('enableActions').test('停用操作'));
+  assert.ok(!loose('enableActions').test('启用所有连接器'));
+});
+
+await check('strip() isolates Chinese connector names', () => {
+  const s = (t) => strip(t, 'enableActions', 'disableActions').trim();
+  assert.equal(s('Google 云端硬盘启用操作'), 'Google 云端硬盘');
+  assert.equal(s('Gmail 停用操作'), 'Gmail');
+});
+
+/* ---------------------------- connector picker ---------------------------- */
+
+await check('connectorMatcher: catalog ids match every language, others are substrings', () => {
+  assert.equal(connectorMatcher([]), null);
+  assert.equal(connectorMatcher(null), null);
+  const m = connectorMatcher(['drive', 'calendar']);
+  for (const l of ['Drive', 'Google Drive', 'Google 云端硬盘', '드라이브', 'Calendar', 'Google 日历', 'Google Agenda']) {
+    assert.ok(m(l), `${l} should match`);
+  }
+  for (const l of ['Gmail', 'Chat', 'Google Chat', 'Google Search', 'Enable all connectors']) {
+    assert.ok(!m(l), `${l} should not match`);
+  }
+  const chat = connectorMatcher(['chat']);
+  assert.ok(chat('Chat') && chat('Google Chat'));
+  assert.ok(!chat('Chatbot'), 'whole-word: "Chat" is not "Chatbot"');
+  const custom = connectorMatcher(['jira']);
+  assert.ok(custom('Atlassian Jira') && !custom('Gmail'));
+  assert.deepEqual(connectorNames(['gmail', 'Jira']), ['Gmail', 'Jira']);
 });
 
 /* --------------------- 2. every wording, in a browser ---------------- */
