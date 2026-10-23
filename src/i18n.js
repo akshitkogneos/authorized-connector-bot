@@ -181,6 +181,18 @@ const T = {
     zh: ['新对话', '新聊天', '聊天', '首页', '主页'],
   },
 
+  // The X / Close button of a dialog (the skills marketplace).
+  close: {
+    en: ['Close', 'Close dialog', 'Dismiss'],
+    es: ['Cerrar', 'Cerrar diálogo'],
+    pt: ['Fechar', 'Fechar caixa de diálogo'],
+    fr: ['Fermer', 'Fermer la boîte de dialogue'],
+    de: ['Schließen', 'Dialogfeld schließen'],
+    it: ['Chiudi', 'Chiudi finestra di dialogo'],
+    ko: ['닫기', '대화상자 닫기'],
+    zh: ['关闭', '关闭对话框'],
+  },
+
   /* ---------------------------- OAuth consent -------------------------- */
   chooseAccount: {
     en: ['Choose an account'],

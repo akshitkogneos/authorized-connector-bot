@@ -155,10 +155,17 @@ async function collectEnableRows(page) {
  */
 export async function readConnectorStates(page, { only = null } = {}) {
   await openConnectorsMenu(page);
+  await firstVisible([enableButtons(page), disableButtons(page)], { timeout: 8_000 });
 
   const pending = await scanRows(enableButtons(page));
   const enabled = await scanRows(disableButtons(page));
   const isTarget = targetFilter(only);
+
+  // Every connector row shows either "Enable actions" or "Disable actions",
+  // so seeing neither means the menu never opened (e.g. a dialog covered it).
+  if (!pending.length && !enabled.length) {
+    throw new Error('the Sources menu did not open (no connector rows visible)');
+  }
 
   return {
     pending: pending.filter((r) => isTarget(r.label)).map((r) => r.label),

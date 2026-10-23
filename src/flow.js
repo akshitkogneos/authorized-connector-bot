@@ -50,11 +50,16 @@ export async function runUserFlow({ page, context, user, phases, connectors = co
     log.info('skipping the connectors phase');
   }
 
+  // Skills this run installed, when it finished with no "Install" left and no
+  // failures - verification falls back to it if the marketplace can't be read.
+  let skillsInstalled = null;
+
   if (phases.skills) {
     try {
-      const { installed, failed } = await installSkills(page);
+      const { installed, failed, names, complete } = await installSkills(page);
       result.installed = installed;
       result.skillsFailed = failed;
+      if (complete) skillsInstalled = names;
     } catch (err) {
       log.error(`skills phase failed: ${err.message}`);
       await shoot(page, 'skills-failure');
@@ -66,7 +71,7 @@ export async function runUserFlow({ page, context, user, phases, connectors = co
 
   if (phases.verify) {
     try {
-      result.verify = await verifyUser(page, verifyScope(phases), { connectors });
+      result.verify = await verifyUser(page, verifyScope(phases), { connectors, skillsInstalled });
     } catch (err) {
       log.error(`verification phase failed: ${err.message}`);
       await shoot(page, 'verify-failure');

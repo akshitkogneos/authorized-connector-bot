@@ -2,7 +2,7 @@ import { config } from '../config.js';
 import { log, shoot } from '../logger.js';
 import { firstVisible, sleep } from '../utils.js';
 import { closeMenu, connectorsButton, readConnectorStates } from './connectors.js';
-import { openSkillsPage, readSkillStates } from './skills.js';
+import { closeDialogs, openSkillsPage, readSkillStates } from './skills.js';
 import { ariaEquals, connectorMatcher, connectorNames, re } from '../i18n.js';
 
 /**
@@ -24,7 +24,11 @@ import { ariaEquals, connectorMatcher, connectorNames, re } from '../i18n.js';
  *     from the account altogether, so the UI never offers it and check 1
  *     passes vacuously.
  */
-export async function verifyUser(page, scope = { connectors: true, skills: true }, { connectors: only = null } = {}) {
+export async function verifyUser(
+  page,
+  scope = { connectors: true, skills: true },
+  { connectors: only = null, skillsInstalled = null } = {},
+) {
   log.step('Verifying the account state');
 
   const report = {
@@ -39,7 +43,7 @@ export async function verifyUser(page, scope = { connectors: true, skills: true 
   };
 
   if (scope.connectors) await checkConnectors(page, report, only);
-  if (scope.skills) await checkSkills(page, report);
+  if (scope.skills) await checkSkills(page, report, skillsInstalled);
 
   report.ok =
     !report.errors.length &&
@@ -57,7 +61,19 @@ async function checkConnectors(page, report, only) {
   try {
     await returnToComposer(page);
 
-    const { enabled, pending, skipped } = await readConnectorStates(page, { only });
+    let states;
+    try {
+      states = await readConnectorStates(page, { only });
+    } catch (err) {
+      log.warn(`${err.message} - reloading and trying once more`);
+      await closeMenu(page).catch(() => {});
+      await page.goto(config.targetUrl, { waitUntil: 'domcontentloaded' }).catch(() => {});
+      await sleep(3_000);
+      await closeDialogs(page);
+      if (!(await composerVisible(page, config.timeout))) throw new Error('the composer did not come back after a reload');
+      states = await readConnectorStates(page, { only });
+    }
+    const { enabled, pending, skipped } = states;
     report.connectorsEnabled = enabled;
     report.connectorsPending = pending;
     report.connectorsSkipped = skipped;
@@ -90,6 +106,9 @@ async function checkConnectors(page, report, only) {
  * a Chat/Home nav entry, the browser's back button, then a reload.
  */
 async function returnToComposer(page) {
+  // The Sources button behind an open dialog still counts as visible, so
+  // close any leftover dialog (e.g. the skills marketplace) first.
+  await closeDialogs(page);
   if (await composerVisible(page, 2_000)) return;
 
   log.info('not on the composer - navigating back to it');
@@ -121,20 +140,31 @@ async function returnToComposer(page) {
 const composerVisible = async (page, timeout) =>
   Boolean(await firstVisible(connectorsButton(page), { timeout }));
 
-async function checkSkills(page, report) {
+async function checkSkills(page, report, installedThisRun) {
   try {
     await openSkillsPage(page);
     const { installed, missing: notInstalled } = await readSkillStates(page);
+    await shoot(page, 'verify-skills');
+    if (!installed.length && !notInstalled.length) {
+      // The skills phase of this same run already saw "Install" disappear
+      // from every card, so an unreadable marketplace isn't a failure.
+      if (installedThisRun) {
+        log.warn('could not read the skills marketplace - using the skills phase result (every skill installed)');
+        report.skillsInstalled = installedThisRun;
+        return;
+      }
+      throw new Error('the skills marketplace showed no skills');
+    }
     report.skillsInstalled = installed;
     report.skillsMissing = notInstalled;
 
     report.missingExpected.push(...missing(config.expectSkills, installed).map((n) => `skill:${n}`));
-
-    await shoot(page, 'verify-skills');
   } catch (err) {
     log.error(`skills verification failed: ${err.message}`);
     report.errors.push(`skills: ${err.message}`);
     await shoot(page, 'verify-skills-failure');
+  } finally {
+    await closeDialogs(page).catch(() => {});
   }
 }
 

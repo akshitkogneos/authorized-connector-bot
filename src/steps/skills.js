@@ -51,7 +51,9 @@ export async function installSkills(page) {
   await shoot(page, 'skills-dialog');
 
   const failed = [];
+  const names = [];
   let installed = 0;
+  let complete = false; // true once no card offers "Install" any more
 
   // Progress is measured by how many "Install" buttons are left, because the
   // list re-orders itself after each install - any index or fallback name is
@@ -66,6 +68,7 @@ export async function installSkills(page) {
     const rows = await collectInstallable(page);
     if (!rows.length) {
       log.info('no skill is left showing "Install"');
+      complete = true;
       break;
     }
     if (cursor >= rows.length) {
@@ -85,6 +88,7 @@ export async function installSkills(page) {
       const after = (await collectInstallable(page)).length;
       if (after < before) {
         installed += 1;
+        names.push(next.name);
         stuck = 0;
         log.ok(`"${next.name}" installed (${after} left)`);
       } else {
@@ -105,7 +109,48 @@ export async function installSkills(page) {
   }
 
   await shoot(page, 'skills-final');
-  return { installed, failed };
+  await closeDialogs(page);
+  return { installed, failed, names, complete: complete && !failed.length };
+}
+
+/** Anything that looks like an open modal: the skills marketplace or a skill's detail view. */
+const openDialogs = (page) => [
+  page.locator('ucs-skill-marketplace-card'),
+  page.getByRole('dialog'),
+  page.locator('md-dialog[open], dialog[open], [aria-modal="true"]'),
+];
+
+/**
+ * Closes the skills marketplace (and any other modal) so it stops covering
+ * the page. Left open, it swallows clicks: the verification phase then
+ * force-clicks the Sources button underneath, the menu never opens and every
+ * connector reads as missing. Escape first, then the dialog's X button.
+ * A skill's detail view may need two rounds: back to the list, then closed.
+ */
+export async function closeDialogs(page) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    if (!(await firstVisible(openDialogs(page), { timeout: 800 }))) return true;
+    if (attempt === 0) log.info('closing the open dialog');
+
+    if (attempt % 2 === 0) {
+      await page.keyboard.press('Escape').catch(() => {});
+    } else {
+      const x = await firstVisible(
+        [
+          page.locator(ariaEquals('close')),
+          page.getByRole('button', { name: re('close') }),
+          page.locator('md-icon-button, button').filter({ has: page.locator('md-icon', { hasText: /^\s*close\s*$/ }) }),
+        ],
+        { timeout: 1_500 },
+      );
+      if (x) await x.click({ timeout: 5_000 }).catch(() => x.click({ force: true }).catch(() => {}));
+      else await page.keyboard.press('Escape').catch(() => {});
+    }
+    await sleep(800);
+  }
+  const stillOpen = Boolean(await firstVisible(openDialogs(page), { timeout: 500 }));
+  if (stillOpen) log.warn('a dialog is still open');
+  return !stillOpen;
 }
 
 /* ------------------------------------------------------------------ */
@@ -246,13 +291,47 @@ async function collectInstallable(page) {
  */
 export async function readSkillStates(page) {
   await openMarketplace(page);
-  await sleep(3_000);
+  await firstVisible([page.locator('ucs-skill-marketplace-card'), page.locator(INSTALL_BUTTONS)], { timeout: 10_000 });
+  await sleep(2_000);
 
   const cards = await scanCards(page);
-  return {
-    missing: cards.filter((c) => c.state === 'install').map((c) => c.name),
-    installed: cards.filter((c) => c.state === 'installed').map((c) => c.name),
-  };
+  const missing = cards.filter((c) => c.state === 'install').map((c) => c.name);
+  const installed = new Set(cards.filter((c) => c.state === 'installed').map((c) => c.name));
+
+  // An installed card has no labelled button at all - just a "…" menu - so
+  // every card that doesn't offer "Install" counts as installed.
+  for (const name of await cardNames(page)) {
+    if (!missing.includes(name)) installed.add(name);
+  }
+
+  return { missing, installed: [...installed] };
+}
+
+/** The "/slug" title of every visible marketplace card (text read across shadow roots). */
+async function cardNames(page) {
+  const cards = page.locator('ucs-skill-marketplace-card');
+  const total = await cards.count().catch(() => 0);
+  const names = new Set();
+  for (let i = 0; i < total; i += 1) {
+    const card = cards.nth(i);
+    // Playwright's isVisible understands display:contents hosts, unlike getClientRects.
+    if (!(await card.isVisible().catch(() => false))) continue;
+    const text = await card
+      .evaluate((el) => {
+        const deep = (node) => {
+          let out = '';
+          for (const child of [...(node.shadowRoot?.childNodes ?? []), ...node.childNodes]) {
+            out += child.nodeType === Node.TEXT_NODE ? `${child.textContent} ` : deep(child);
+          }
+          return out;
+        };
+        return `${el.innerText || ''} ${deep(el)}`;
+      })
+      .catch(() => '');
+    const slug = text.match(/\/[a-z0-9][a-z0-9-_]{2,}/i)?.[0];
+    if (slug) names.add(slug);
+  }
+  return [...names];
 }
 
 /**
