@@ -110,7 +110,7 @@ await check('Korean whole-word traps: "설치" is not "설치됨", enable is not
   assert.ok(!loose('enableActions').test('모든 커넥터 사용 설정'));
 });
 
-/* --------------------------- Simplified Chinese --------------------------- */
+/* ---------------------- Simplified & Traditional Chinese ------------------ */
 
 await check('Chinese wordings from a live zh-CN account match', () => {
   assert.ok(re('getStarted').test('开始'));
@@ -121,21 +121,54 @@ await check('Chinese wordings from a live zh-CN account match', () => {
   assert.ok(loose('disableActions').test('停用操作'));
 });
 
-await check('Chinese traps: "已安装" is not "安装", "已授权"/"取消授权" are not "授权", disable is not enable', () => {
+await check('Traditional Chinese (zh-TW / zh-HK) wordings match', () => {
+  assert.ok(re('next').test('登入'));
+  assert.ok(re('next').test('繼續'));
+  assert.ok(re('understand').test('我瞭解'));
+  assert.ok(re('getStarted').test('開始'));
+  assert.ok(re('home').test('新對話'));
+  assert.ok(re('sources').test('來源'));
+  assert.ok(re('skills').test('技能'));
+  assert.ok(re('browseSkills').test('瀏覽技能'));
+  assert.ok(re('install').test('安裝'));
+  assert.ok(re('allow').test('允許'));
+  assert.ok(re('chooseAccount').test('選擇帳戶'));
+  assert.ok(loose('enableActions').test('啟用動作'));
+  assert.ok(loose('enableActions').test('啟用操作'));
+  assert.ok(loose('disableActions').test('停用動作'));
+  assert.ok(loose('disableActions').test('停用操作'));
+});
+
+await check('Chinese traps: "已安装"/"已安裝"/"解除安裝" are not install, "已授权"/"已授權"/"取消授權"/"解除授權" are not authorize, disable is not enable', () => {
   assert.ok(!re('install').test('已安装'));
+  assert.ok(!re('install').test('已安裝'));
+  assert.ok(!re('install').test('解除安裝'));
+  assert.ok(!loose('install').test('已安裝'));
+  assert.ok(!loose('install').test('解除安裝'));
   assert.ok(re('installed').test('已安装'));
+  assert.ok(re('installed').test('已安裝'));
+  assert.ok(re('installed').test('解除安裝'));
   assert.ok(!loose('enableActions').test('已授权'));
   assert.ok(!loose('enableActions').test('未授权'));
   assert.ok(!loose('enableActions').test('取消授权'));
+  assert.ok(!loose('enableActions').test('已授權'));
+  assert.ok(!loose('enableActions').test('未授權'));
+  assert.ok(!loose('enableActions').test('取消授權'));
+  assert.ok(!loose('enableActions').test('解除授權'));
   assert.ok(loose('enableActions').test('授权'));
+  assert.ok(loose('enableActions').test('授權'));
   assert.ok(!loose('enableActions').test('停用操作'));
+  assert.ok(!loose('enableActions').test('停用動作'));
   assert.ok(!loose('enableActions').test('启用所有连接器'));
+  assert.ok(!loose('enableActions').test('啟用所有連接器'));
 });
 
-await check('strip() isolates Chinese connector names', () => {
+await check('strip() isolates Chinese connector names (Simplified & Traditional)', () => {
   const s = (t) => strip(t, 'enableActions', 'disableActions').trim();
   assert.equal(s('Google 云端硬盘启用操作'), 'Google 云端硬盘');
   assert.equal(s('Gmail 停用操作'), 'Gmail');
+  assert.equal(s('Google 雲端硬碟啟用動作'), 'Google 雲端硬碟');
+  assert.equal(s('Google 日曆 停用動作'), 'Google 日曆');
 });
 
 /* ---------------------------- connector picker ---------------------------- */
@@ -144,7 +177,10 @@ await check('connectorMatcher: catalog ids match every language, others are subs
   assert.equal(connectorMatcher([]), null);
   assert.equal(connectorMatcher(null), null);
   const m = connectorMatcher(['drive', 'calendar']);
-  for (const l of ['Drive', 'Google Drive', 'Google 云端硬盘', '드라이브', 'Calendar', 'Google 日历', 'Google Agenda']) {
+  for (const l of [
+    'Drive', 'Google Drive', 'Google 云端硬盘', 'Google 雲端硬碟', '雲端硬碟', '드라이브',
+    'Calendar', 'Google 日历', 'Google 日曆', '日曆', 'Google Agenda',
+  ]) {
     assert.ok(m(l), `${l} should match`);
   }
   for (const l of ['Gmail', 'Chat', 'Google Chat', 'Google Search', 'Enable all connectors']) {
@@ -161,7 +197,7 @@ await check('connectorMatcher: catalog ids match every language, others are subs
 /* --------------------- 2. every wording, in a browser ---------------- */
 
 const KEYS = [
-  'next', 'understand', 'getStarted', 'sources', 'enableActions', 'disableActions', 'home',
+  'next', 'understand', 'getStarted', 'sources', 'enableActions', 'disableActions', 'home', 'close',
   'continue', 'selectAll', 'allow', 'allowLoose', 'skills', 'browseSkills', 'install', 'installed',
   'chooseAccount', 'signInRejected', 'challenge', 'challengeDetail', 'emailField', 'passwordField',
 ];
@@ -216,6 +252,14 @@ await check('in a browser, only "작업 사용 설정" is a Korean "enable" butt
   );
   const enable = await page.locator('button').filter({ hasText: loose('enableActions') }).allTextContents();
   assert.deepEqual(enable, ['작업 사용 설정']);
+});
+
+await check('in a browser, only "啟用動作" and "授權" are Traditional Chinese "enable" buttons', async () => {
+  await page.setContent(
+    '<!doctype html><meta charset="utf-8"><button>啟用所有連接器</button><button>停用動作</button><button>已授權</button><button>取消授權</button><button>解除授權</button><button>啟用動作</button><button>授權</button>',
+  );
+  const enable = await page.locator('button').filter({ hasText: loose('enableActions') }).allTextContents();
+  assert.deepEqual(enable, ['啟用動作', '授權']);
 });
 
 await browser.close();

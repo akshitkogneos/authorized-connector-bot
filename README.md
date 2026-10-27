@@ -356,7 +356,7 @@ Gemini Enterprise and Google's sign-in / consent screens show up in the
 *Permitir* instead of *Enable actions* and *Allow*. The bot recognises every
 button in:
 
-**English · Spanish · Portuguese · French · German · Italian · Korean · Chinese (Simplified)**
+**English · Spanish · Portuguese · French · German · Italian · Korean · Chinese (Simplified & Traditional)**
 
 Nothing to configure. Mixed-language CSVs work too, because each button is
 matched against all languages at once.
@@ -371,10 +371,12 @@ is never found inside *설치됨* (Installed). Accent-stripping recomposes Hangu
 afterwards (NFC). Without that step a Korean pattern never matches, because
 Unicode decomposition splits every syllable into separate jamo.
 
-Chinese has no spaces between words, so Han characters are *not* treated as
-letters (otherwise *开始* would not be found in *开始使用*). Instead, *已*, *未* and
-*消* in front of a wording block the match, so *授权* (Authorize) is never found
-in *已授权* (Authorized) or *取消授权* (Revoke), nor *安装* in *已安装*.
+Chinese (both Simplified and Traditional) has no spaces between words, so Han
+characters are *not* treated as letters (otherwise *开始* / *開始* would not be
+found in *开始使用* / *開始使用*). Instead, *已*, *未*, *消* and *除* in front of
+a wording block the match, so *授权* / *授權* (Authorize) is never found in
+*已授权* / *已授權* (Authorized) or *取消授权* / *取消授權* / *解除授權* (Revoke),
+nor *安装* / *安裝* in *已安装* / *已安裝* or *解除安裝* (Uninstall).
 
 > [!NOTE]
 > Korean has been run end to end against a real Korean account: sign-in,
@@ -384,10 +386,10 @@ in *已授权* (Authorized) or *取消授权* (Revoke), nor *安装* in *已安�
 > screenshot in `runs/<timestamp>/`, then add the exact wording to the
 > matching list in `src/i18n.js`.
 
-Test it offline. The mock app can be served in Spanish, Portuguese, Korean or Chinese:
+Test it offline. The mock app can be served in Spanish, Portuguese, Korean or Chinese (Simplified or Traditional):
 
 ```bash
-npm run mock:es     # terminal 1 (or mock:pt / mock:ko / mock:zh)
+npm run mock:es     # terminal 1 (or mock:pt / mock:ko / mock:zh / mock:zh-tw)
 npm run test:mock   # terminal 2
 npm run test:i18n   # no server needed
 ```
@@ -412,7 +414,7 @@ user in a run:
 - **Default** - `ONLY_CONNECTORS=gmail,drive` in `.env` (also pre-ticks the UI).
 
 The ids are `gmail`, `calendar`, `drive` and `chat`. Each one matches its row
-in any UI language (*Drive*, *Google 云端硬盘*, *드라이브*, …) - the list lives in
+in any UI language (*Drive*, *Google 云端硬盘*, *Google 雲端硬碟*, *드라이브*, …) - the list lives in
 `CONNECTORS` in [src/i18n.js](./src/i18n.js). Any other text is matched as a
 substring of the row name. Connectors you didn't pick are left alone, and the
 verification step then checks that every picked connector ended up enabled.

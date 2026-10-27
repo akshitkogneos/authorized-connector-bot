@@ -112,9 +112,28 @@ const STRINGS = {
     scrollHint: '向下滚动才能点击“允许”。', ready: '已就绪。',
     names: ['Gmail', 'Google 日历', 'Google 云端硬盘', 'Google Chat'],
   },
+  // Traditional Chinese (zh-TW / zh-HK).
+  'zh-TW': {
+    signIn: '登入', next: '下一步', email: '電子郵件地址', password: '密碼',
+    enterEmail: '請輸入電子郵件地址', wrongPassword: '密碼錯誤，請再試一次。',
+    terms: '條款', experimental: '這是一項實驗性功能。', understand: '我瞭解',
+    welcome: '歡迎使用 Gemini Enterprise！', setup: '讓我們來設定您的工作區。', getStarted: '開始',
+    chat: '新對話', skills: '技能', prompt: '開始工作吧！', ask: '向 Gemini Enterprise 提問',
+    upload: '新增檔案', tools: '選取工具', connectors: '來源',
+    allConnectors: '啟用所有連接器', search: 'Google 搜尋',
+    enable: '啟用動作', disable: '停用動作', toggle: 'Toggle source',
+    createSkill: '使用 Gemini 建立技能', browseSkills: '瀏覽技能', import: '上傳技能',
+    marketplace: '技能市集', close: '關閉', install: '安裝', installed: '已安裝',
+    chooseAccount: '選擇帳戶', toContinue: '以繼續使用',
+    wantsAccess: '想要存取您的 Google 帳戶', permission: '權限',
+    readManage: '查看及管理您的', data: '資料',
+    selectAll: '全選', cancel: '取消', allow: '允許',
+    scrollHint: '向下捲動才能點選「允許」。', ready: '已就緒。',
+    names: ['Gmail', 'Google 日曆', 'Google 雲端硬碟', 'Google Chat'],
+  },
 };
 
-const LANG = STRINGS[process.env.MOCK_LANG] ? process.env.MOCK_LANG : 'en';
+const LANG = Object.keys(STRINGS).find((k) => k.toLowerCase() === (process.env.MOCK_LANG || '').toLowerCase()) || 'en';
 const S = STRINGS[LANG];
 
 const CONNECTORS = [S.allConnectors, S.search, ...(S.names ?? ['Gmail', 'Google Calendar', 'Google Drive', 'Google Chat'])];
